@@ -402,8 +402,7 @@ OUTPUT: Single image, same aspect ratio as source, high resolution.`;
       ]
     }],
     generationConfig: {
-      responseModalities: ['IMAGE', 'TEXT'],
-      imageMimeType: 'image/png'
+      responseModalities: ['IMAGE', 'TEXT']
     }
   });
 
@@ -468,9 +467,10 @@ async function geminiStyleTransferWithRetry(pngBuffer, exhibitStyle) {
       if (result) circuitBreakers.gemini.recordSuccess();
       return result;
     } catch (e) {
+      const isPayloadError = e.message && (e.message.includes('Gemini 400') || e.message.includes('INVALID_ARGUMENT'));
       logger.warn(`Gemini tentative ${i + 1}/${MAX_GEMINI_RETRIES + 1} echouee: ${e.message}`);
-      circuitBreakers.gemini.recordFailure();
-      if (i >= MAX_GEMINI_RETRIES) return null;
+      if (!isPayloadError) circuitBreakers.gemini.recordFailure();
+      if (i >= MAX_GEMINI_RETRIES || isPayloadError) return null;
       await new Promise((r) => setTimeout(r, delays[Math.min(i, delays.length - 1)]));
     }
   }
