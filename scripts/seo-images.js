@@ -399,7 +399,7 @@ async function callFluxBatch(bflKey, prompt, aspectRatio, seeds, model) {
   }
 
   const fluxModel = model || 'flux-pro-1.1';
-  const dim = { '16:9': { w: 1024, h: 576 }, '4:3': { w: 1024, h: 768 }, '3:2': { w: 1024, h: 683 }, '1:1': { w: 1024, h: 1024 } };
+  const dim = { '16:9': { w: 1024, h: 576 }, '4:3': { w: 1024, h: 768 }, '3:2': { w: 1024, h: 672 }, '1:1': { w: 1024, h: 1024 } };
   const d = dim[aspectRatio] || dim['16:9'];
 
   // ── Step 1: Submit all seeds in parallel (EU endpoint) ──
@@ -414,7 +414,9 @@ async function callFluxBatch(bflKey, prompt, aspectRatio, seeds, model) {
   const tasks = [];
   for (let i = 0; i < submitted.length; i++) {
     if (submitted[i].status === 'fulfilled' && submitted[i].value && submitted[i].value.id) {
-      tasks.push({ seed: seeds[i], taskId: submitted[i].value.id });
+      const pollingUrl = submitted[i].value.polling_url ||
+        `https://api.eu.bfl.ai/v1/get_result?id=${encodeURIComponent(submitted[i].value.id)}`;
+      tasks.push({ seed: seeds[i], taskId: submitted[i].value.id, pollingUrl });
       logger.debug(`Flux task soumise: seed=${seeds[i]} taskId=${submitted[i].value.id}`);
     } else {
       logger.warn(`Seed ${seeds[i]} soumission echouee: ${submitted[i].reason?.message || 'no task id'}`);
@@ -430,13 +432,13 @@ async function callFluxBatch(bflKey, prompt, aspectRatio, seeds, model) {
   const POLL_INTERVAL = 3000; // 3s between polls
   const MAX_POLLS = 40;       // 120s max per image
 
-  async function pollTask({ seed, taskId }) {
+  async function pollTask({ seed, taskId, pollingUrl }) {
     for (let poll = 0; poll < MAX_POLLS; poll++) {
       await new Promise((r) => setTimeout(r, POLL_INTERVAL));
 
       try {
         const res = await httpGetRetry(
-          `https://api.eu.bfl.ai/v1/get_result?id=${encodeURIComponent(taskId)}`,
+          pollingUrl,
           { 'x-key': bflKey },
           1, 10000
         );
