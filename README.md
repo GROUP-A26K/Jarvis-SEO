@@ -1,4 +1,4 @@
-# Scripts SEO v5 — Groupe Genevoise
+# Jarvis SEO v7 — Groupe Genevoise
 
 Workflow SEO automatise pour les 5 sites du Groupe Genevoise.
 **Jarvis One** — A26K Group.
