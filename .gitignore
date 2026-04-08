@@ -1,0 +1,19 @@
+# Secrets — JAMAIS dans le repo
+secrets/
+
+# Runtime data
+data/
+images/
+reports/
+logs/
+
+# Node
+node_modules/
+package-lock.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env

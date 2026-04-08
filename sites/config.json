@@ -1,0 +1,310 @@
+{
+  "_meta": {
+    "version": 2,
+    "description": "Configuration centralisee des sites — Jarvis One / Groupe Genevoise",
+    "sanityDefaults": {
+      "projectId": "ttza946i",
+      "dataset": "production",
+      "apiVersion": "2024-01-01",
+      "defaultAuthorId": "4cb740e5-5047-4314-b990-341542c463ee",
+      "defaultCategoryId": "cef2817a-8116-4ec0-808a-ec9c5640a7a5",
+      "defaultImageId": "image-ae7c3ec3942f88ddbc1fa36cf5bcb48684f8393a-4096x2731-webp"
+    },
+    "personasDetails": {
+      "Hugo Schaller": {
+        "style": "Expert medical et financier. Ton direct et technique. Public: medecins FMH, RC Pro, FINMA, Tardoc."
+      },
+      "Amelie Bonvin": {
+        "style": "Accessible, pedagogique. Public: infirmiers, pharmaciens, paramedicaux."
+      },
+      "Marc Favre": {
+        "style": "Technique, direct. Optimisation fiscale, restructuration, finance."
+      },
+      "Elodie Rochat": {
+        "style": "Pedagogique. Articles premiere fois: creer SA, TVA."
+      },
+      "Lucas Morel": {
+        "style": "Pratique, terrain. Logistique, administratif."
+      },
+      "Sofia Meier": {
+        "style": "Chaleureux, empathique. Integration, famille."
+      },
+      "Philippe Dufour": {
+        "style": "Direct, comparatif. B2B, professions liberales."
+      },
+      "Nathalie Berger": {
+        "style": "Clair, anti-jargon. Particuliers, frontaliers, LAMal."
+      }
+    }
+  },
+  "medcourtage.ch": {
+    "label": "MedCourtage",
+    "entity": "AG Assurance Genevoise SA",
+    "verticale": "Assurance medicale",
+    "finma": "FINMA F01502264",
+    "siteContext": {
+      "secteur": "Assurance medicale / courtage sante",
+      "ton": "Expert, technique, ancrage FINMA et FMH. Direct, factuel, chiffres precis.",
+      "public": "Medecins FMH, professions liberales medicales, paramedicaux, pharmaciens",
+      "palette": [
+        "#1a1a2e",
+        "#2c5f7c",
+        "#e8d5b7",
+        "#f5f5f0"
+      ],
+      "exemples_articles": "RC Pro medecin, prevoyance LPP professions medicales, assurance perte de gain, Tardoc vs Tarmed"
+    },
+    "sources": "finma.ch, fmh.ch, bag.admin.ch, ofas.admin.ch, tardoc.ch, gdk-cds.ch",
+    "personas": [
+      "Hugo Schaller",
+      "Amelie Bonvin"
+    ],
+    "fallbackCompetitors": [
+      "swisslife.ch",
+      "groupe-mutuel.ch",
+      "css.ch"
+    ],
+    "sanity": {
+      "documentType": "medcourtageBlogPost"
+    },
+    "imageStyle": {
+      "secteurRef": "SANTE / MEDICAL + FINANCE / ASSURANCE",
+      "appareils": [
+        "Canon 5D Mark IV",
+        "Leica Q2"
+      ],
+      "focales": "35-85mm, f/2.8-f/4",
+      "palette_dominante": "blanc clinique, bleu marine, or discret, gris anthracite",
+      "sujets_types": "equipements medicaux, bureaux cabinet, documents assurance, espaces cliniques",
+      "imperfections_types": "reflets inox, neons verdatres, documents annotes, stylo pose"
+    },
+    "sources_stables": [
+      "https://www.bag.admin.ch/bag/fr/home/versicherungen/krankenversicherung.html",
+      "https://www.finma.ch/fr/surveillance/assurances/assureurs-directs/",
+      "https://www.ofas.admin.ch/fr/home.html",
+      "https://www.admin.ch/gov/fr/accueil.html",
+      "https://www.fedlex.admin.ch/fr/home"
+    ],
+    "exhibitStyle": {
+      "accentColor": "#2c5f7c",
+      "accentColorLight": "#e6f0f5",
+      "geminiDirective": "Swiss medical insurance consulting report. Clinical precision, navy blue (#2c5f7c) accents on pure white, subtle linen paper texture. Typography: clean sans-serif, generous spacing. Aesthetic: between a FMH medical journal and a FINMA regulatory document. Professional, factual, zero decoration."
+    }
+  },
+  "fiduciaire-genevoise.ch": {
+    "label": "Fiduciaire GE",
+    "entity": "Fiduciaire Genevoise SA",
+    "verticale": "Fiduciaire GE",
+    "finma": null,
+    "siteContext": {
+      "secteur": "Fiduciaire / comptabilite / fiscalite",
+      "ton": "Technique, direct, expertise fiscale suisse. Optimisation, restructuration.",
+      "public": "Entrepreneurs, PME genevoises, holdings, professions liberales",
+      "palette": [
+        "#1a1a2e",
+        "#c9a84c",
+        "#f5f5f0",
+        "#4a4a4a"
+      ],
+      "exemples_articles": "Creation SA Geneve, optimisation fiscale, TVA suisse, comptabilite PME"
+    },
+    "sources": "fedlex.admin.ch, estv.admin.ch, ge.ch/impots, rc.ge.ch, seco.admin.ch",
+    "personas": [
+      "Marc Favre",
+      "Elodie Rochat"
+    ],
+    "fallbackCompetitors": [
+      "bdo.ch",
+      "kpmg.ch",
+      "fiduciaire.ch"
+    ],
+    "sanity": {
+      "documentType": "fiduciaireGenevoiseBlogPost"
+    },
+    "imageStyle": {
+      "secteurRef": "FINANCE / BANQUE / ASSURANCE + JURIDIQUE / NOTARIAL",
+      "appareils": [
+        "Canon R5",
+        "Leica Q2"
+      ],
+      "focales": "35-50mm, f/2.8-f/4",
+      "palette_dominante": "gris anthracite, or bronze, blanc casse, bois sombre",
+      "sujets_types": "espaces de travail, documents comptables, ecrans, architecture bureaux",
+      "imperfections_types": "reflets ecrans, cables, stylo pose, tasse cafe, pages cornees"
+    },
+    "sources_stables": [
+      "https://www.estv.admin.ch/estv/fr/home.html",
+      "https://www.ge.ch/impots-cantonaux",
+      "https://www.seco.admin.ch/seco/fr/home.html",
+      "https://www.fedlex.admin.ch/fr/home",
+      "https://www.zefix.admin.ch/fr/search/entity/welcome.zul"
+    ],
+    "exhibitStyle": {
+      "accentColor": "#1a1a2e",
+      "accentColorLight": "#f0ece0",
+      "geminiDirective": "Geneva private banking and fiduciary document. Dark anthracite (#1a1a2e) headers with bronze-gold (#c9a84c) accent lines on ivory white. Subtle laid paper texture. Typography: tight, structured, ledger-like precision. Aesthetic: a page from a Swiss private bank annual report. Authoritative, discreet, old-money restraint."
+    }
+  },
+  "fiduciairevaudoise.ch": {
+    "label": "Fiduciaire VD",
+    "entity": "Fiduciaire Vaudoise SA",
+    "verticale": "Fiduciaire VD",
+    "finma": null,
+    "siteContext": {
+      "secteur": "Fiduciaire / comptabilite / fiscalite",
+      "ton": "Technique, direct, expertise fiscale vaudoise. Precision, methode.",
+      "public": "Entrepreneurs, PME vaudoises, professions liberales, createurs d'entreprise",
+      "palette": [
+        "#1a1a2e",
+        "#c9a84c",
+        "#f5f5f0",
+        "#4a4a4a"
+      ],
+      "exemples_articles": "Fiscalite vaudoise, comptabilite PME, creation Sarl, TVA 2026"
+    },
+    "sources": "fedlex.admin.ch, estv.admin.ch, vd.ch/themes/fiscalite, seco.admin.ch",
+    "personas": [
+      "Marc Favre",
+      "Elodie Rochat"
+    ],
+    "fallbackCompetitors": [
+      "bdo.ch",
+      "fidag.ch",
+      "berney-associes.ch"
+    ],
+    "sanity": {
+      "documentType": "fiduciaireVaudoiseBlogPost"
+    },
+    "imageStyle": {
+      "secteurRef": "FINANCE / BANQUE / ASSURANCE + JURIDIQUE / NOTARIAL",
+      "appareils": [
+        "Canon R5",
+        "Leica Q2"
+      ],
+      "focales": "35-50mm, f/2.8-f/4",
+      "palette_dominante": "gris anthracite, or bronze, blanc casse, bois sombre",
+      "sujets_types": "espaces de travail, documents comptables, ecrans, architecture bureaux",
+      "imperfections_types": "reflets ecrans, cables, stylo pose, tasse cafe, pages cornees"
+    },
+    "sources_stables": [
+      "https://www.estv.admin.ch/estv/fr/home.html",
+      "https://www.vd.ch/themes/etat-droit-finances/impots/",
+      "https://www.seco.admin.ch/seco/fr/home.html",
+      "https://www.fedlex.admin.ch/fr/home",
+      "https://www.rc-vd.ch/"
+    ],
+    "exhibitStyle": {
+      "accentColor": "#1a1a2e",
+      "accentColorLight": "#f0ece0",
+      "geminiDirective": "Vaud cantonal fiduciary advisory document. Dark anthracite (#1a1a2e) with warm bronze (#c9a84c) accents on off-white. Subtle cotton paper grain. Typography: methodical, orderly, Swiss-German accounting precision. Aesthetic: cantonal tax administration report meets boutique advisory firm. Structured, no-nonsense, trustworthy."
+    }
+  },
+  "relocation-genevoise.ch": {
+    "label": "Relocation",
+    "entity": "Relocation Genevoise SA",
+    "verticale": "Relocation",
+    "finma": null,
+    "siteContext": {
+      "secteur": "Relocation / expatriation / immigration",
+      "ton": "Pratique, chaleureux, terrain. Logistique + integration + famille.",
+      "public": "Expatries, entreprises internationales, familles en relocation vers Geneve/Suisse",
+      "palette": [
+        "#1a1a2e",
+        "#3a7d6e",
+        "#e8d5b7",
+        "#f5f5f0"
+      ],
+      "exemples_articles": "Permis de travail Suisse, demenagement international, ecoles internationales Geneve, bail suisse"
+    },
+    "sources": "fedlex.admin.ch, sem.admin.ch, ge.ch/population, ocl.ge.ch, asloca.ch",
+    "personas": [
+      "Lucas Morel",
+      "Sofia Meier"
+    ],
+    "fallbackCompetitors": [
+      "packimpex.ch",
+      "gfrelo.ch",
+      "expatya.ch"
+    ],
+    "sanity": {
+      "documentType": "relocationGenevoiseBlogPost"
+    },
+    "imageStyle": {
+      "secteurRef": "IMMOBILIER / ARCHITECTURE",
+      "appareils": [
+        "Sony A7IV",
+        "Fujifilm X-T5"
+      ],
+      "focales": "24-50mm, f/2-f/4",
+      "palette_dominante": "chauds terreux, bois clair, vert sauge, blanc",
+      "sujets_types": "appartements, quartiers genevois, cartons demenagement, documents administratifs",
+      "imperfections_types": "lumiere inegale fenetre, cartons ouverts, cles posees, traces de vie"
+    },
+    "sources_stables": [
+      "https://www.sem.admin.ch/sem/fr/home.html",
+      "https://www.ge.ch/vivre-geneve/arriver-geneve",
+      "https://www.fedlex.admin.ch/fr/home",
+      "https://www.asloca.ch/",
+      "https://www.ocl.vd.ch/"
+    ],
+    "exhibitStyle": {
+      "accentColor": "#3a7d6e",
+      "accentColorLight": "#e8f4ef",
+      "geminiDirective": "International relocation guide for Geneva expatriates. Sage green (#3a7d6e) accents on warm white, subtle recycled paper texture. Typography: approachable sans-serif, open spacing, bilingual feel. Aesthetic: a welcome booklet from a premium relocation concierge. Warm, practical, internationally sophisticated."
+    }
+  },
+  "assurance-genevoise.ch": {
+    "label": "Assurance",
+    "entity": "Assurance Genevoise SA",
+    "verticale": "Courtage assurance",
+    "finma": "FINMA F01502264",
+    "siteContext": {
+      "secteur": "Courtage assurance / LAMal / LPP / LCA",
+      "ton": "Direct, comparatif, anti-jargon. B2B et particuliers.",
+      "public": "PME, professions liberales, particuliers, frontaliers, familles",
+      "palette": [
+        "#1a1a2e",
+        "#2c5f7c",
+        "#c9a84c",
+        "#f5f5f0"
+      ],
+      "exemples_articles": "Comparatif LAMal, assurance RC entreprise, LPP optimisation, frontaliers CMU vs LAMal"
+    },
+    "sources": "finma.ch, bag.admin.ch, ofas.admin.ch, suva.ch, fedlex.admin.ch",
+    "personas": [
+      "Philippe Dufour",
+      "Nathalie Berger"
+    ],
+    "fallbackCompetitors": [
+      "swisslife.ch",
+      "axa.ch",
+      "helvetia.ch"
+    ],
+    "sanity": {
+      "documentType": "assuranceGenevoiseBlogPost"
+    },
+    "imageStyle": {
+      "secteurRef": "FINANCE / BANQUE / ASSURANCE",
+      "appareils": [
+        "Canon R5",
+        "Leica Q2"
+      ],
+      "focales": "35-50mm, f/2.8-f/4",
+      "palette_dominante": "gris anthracite, bleu marine, or, blanc casse",
+      "sujets_types": "espaces de travail, contrats, ecrans comparatifs, bureaux conseil",
+      "imperfections_types": "reflets ecrans, cables, stylo pose, tasse cafe, dossiers empiles"
+    },
+    "sources_stables": [
+      "https://www.finma.ch/fr/surveillance/assurances/",
+      "https://www.bag.admin.ch/bag/fr/home/versicherungen.html",
+      "https://www.suva.ch/fr-ch/",
+      "https://www.ofas.admin.ch/fr/home.html",
+      "https://www.fedlex.admin.ch/fr/home"
+    ],
+    "exhibitStyle": {
+      "accentColor": "#2c5f7c",
+      "accentColorLight": "#e6f0f5",
+      "geminiDirective": "Swiss insurance brokerage comparison document. Navy blue (#2c5f7c) headers with gold (#c9a84c) highlight on white. Subtle vellum paper texture. Typography: direct, comparative, data-forward. Aesthetic: an independent broker client advisory sheet. Clear, impartial, decision-oriented."
+    }
+  }
+}
