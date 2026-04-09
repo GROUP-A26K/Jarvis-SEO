@@ -458,15 +458,38 @@ function buildTOC(article) {
   return article.sections.map((s, i) => ({ _type: 'block', _key: `toc_${i}`, style: 'normal', children: [{ _type: 'span', _key: `tocs_${i}`, text: `${i + 1}. ${s.heading}`, marks: [] }], markDefs: [] }));
 }
 
-function articleToPortableText(article, disclaimer) {
+function articleToPortableText(article, disclaimer, exhibitAssetIds) {
   const blocks = []; let k = 0;
   const tb = (t, s) => ({ _type: 'block', _key: `b_${k++}`, style: s || 'normal', children: [{ _type: 'span', _key: `s_${k++}`, text: t, marks: [] }], markDefs: [] });
+  const exhibits = exhibitAssetIds && exhibitAssetIds.length > 0 ? [...exhibitAssetIds] : [];
+
+  // Compute insertion points: distribute exhibits evenly across sections
+  // 1 exhibit → after section at 1/2 of sections; 2 exhibits → after 1/3 and 2/3
+  const totalSections = article.sections.length;
+  const insertAfter = new Set();
+  if (exhibits.length === 1) {
+    insertAfter.add(Math.max(0, Math.floor(totalSections / 2) - 1));
+  } else if (exhibits.length >= 2) {
+    insertAfter.add(Math.max(0, Math.floor(totalSections / 3) - 1));
+    insertAfter.add(Math.max(1, Math.floor((totalSections * 2) / 3) - 1));
+  }
+
   // Sommaire
   blocks.push(tb('Sommaire', 'h3'));
   for (const tocItem of buildTOC(article)) blocks.push(tocItem);
   blocks.push(tb('', 'normal')); // spacer
-  // Sections
-  for (const sec of article.sections) { blocks.push(tb(sec.heading, 'h2')); for (const p of sec.content.split('\n\n').filter(Boolean)) blocks.push(tb(p)); }
+
+  // Sections + exhibits intercalés
+  for (let i = 0; i < article.sections.length; i++) {
+    const sec = article.sections[i];
+    blocks.push(tb(sec.heading, 'h2'));
+    for (const p of sec.content.split('\n\n').filter(Boolean)) blocks.push(tb(p));
+    if (insertAfter.has(i) && exhibits.length > 0) {
+      const ex = exhibits.shift();
+      blocks.push({ _type: 'image', _key: `exhibit_${k++}`, asset: { _type: 'reference', _ref: ex.assetId }, alt: ex.altText || '' });
+    }
+  }
+
   // FAQ
   if (article.faq && article.faq.length > 0) blocks.push({ _type: 'faqBlock', _key: `faq_${k++}`, title: 'Questions frequentes', items: article.faq.map((f, i) => ({ _type: 'faqItem', _key: `fi_${i}`, question: f.question, answer: f.answer })) });
   // Disclaimer
@@ -550,7 +573,7 @@ async function uploadImageToSanity(imagePath) {
   });
 }
 
-async function publishToSanity(site, article, lang, persona, geoScore, disclaimer, imageAssetId, imageAlt) {
+async function publishToSanity(site, article, lang, persona, geoScore, disclaimer, imageAssetId, imageAlt, exhibitAssetIds) {
   let token; try { const s = loadSecret('sanity'); token = s.token || s.api_token; } catch (e) { throw new Error(`Sanity token requis. ${e.message}`); }
   const slug = lang === 'en' ? `en/${article.slug}` : article.slug;
   const docId = `article-${slug.replace(/\//g, '-')}-${Date.now()}`;
@@ -568,7 +591,7 @@ async function publishToSanity(site, article, lang, persona, geoScore, disclaime
     author: { _type: 'reference', _ref: DEFAULT_AUTHOR_ID },
     category: { _type: 'reference', _ref: DEFAULT_CATEGORY_ID },
     mainImage,
-    body: [{ _type: 'wysiwygBlock', _key: 'w_main', blockTitle: article.title, content: articleToPortableText(article, disclaimer) }],
+    body: [{ _type: 'wysiwygBlock', _key: 'w_main', blockTitle: article.title, content: articleToPortableText(article, disclaimer, exhibitAssetIds) }],
     metaTitle: article.metaTitle || article.title, metaDescription: article.metaDescription || article.summary,
     persona, geoScore: geoScore.total, geoStatus: geoScore.status, disclaimer,
     publishedAt: new Date().toISOString(),
@@ -738,12 +761,12 @@ async function main() {
 
   let publishedDocId = null;
   try {
-    const resFR = await publishToSanity(opts.site, articleFR, 'fr', opts.persona, geoScore, disclaimer, imageAssetId, imageAlt);
+    const resFR = await publishToSanity(opts.site, articleFR, 'fr', opts.persona, geoScore, disclaimer, imageAssetId, imageAlt, exhibitAssetIds);
     console.log(`  + FR: ${resFR.docId}`);
     publishedDocId = resFR.docId;
   } catch (err) { console.error(`  ! Sanity FR: ${err.message}`); }
   try {
-    const resEN = await publishToSanity(opts.site, articleEN, 'en', opts.persona, geoScore, disclaimer, imageAssetId, imageAlt);
+    const resEN = await publishToSanity(opts.site, articleEN, 'en', opts.persona, geoScore, disclaimer, imageAssetId, imageAlt, exhibitAssetIds);
     console.log(`  + EN: ${resEN.docId}`);
   } catch (err) { console.error(`  ! Sanity EN: ${err.message}`); }
   if (publishedDocId) {
