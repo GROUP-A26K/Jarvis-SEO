@@ -24,7 +24,7 @@ const {
 } = require('./seo-shared');
 
 const EXHIBITS_DIR = path.join(PATHS.images, 'exhibits');
-const MAX_GEMINI_RETRIES = 3;
+const MAX_CLAUDE_STYLE_RETRIES = 2; // Pipeline 3b: max retries pour Claude SVG styling
 
 // ═══════════════════════════════════════════════════════════════
 // EXHIBIT TYPES
@@ -393,7 +393,7 @@ async function rasterizeSVG(svgString) {
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Send PNG to Gemini 3 Pro Image for editorial styling.
+ * Pipeline 3b — Claude SVG styling entry point.
  * Returns the styled PNG buffer or null on failure.
  */
 /**
@@ -485,15 +485,15 @@ CONTRAINTE TECHNIQUE :
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Compare source (SVG rasterized) and Gemini output using Claude Vision.
- * Checks text integrity, layout preservation, and legibility.
+ * Agent 3 — Compare source SVG rasterisé vs version stylisée Claude.
+ * Vérifie l'intégrité du texte, le layout et la lisibilité.
  * Returns { verdict, recommendation, details }.
  */
-async function verifyExhibitIntegrity(apiKey, sourcePngBuffer, geminiPngBuffer, expectedData) {
+async function verifyExhibitIntegrity(apiKey, sourcePngBuffer, styledPngBuffer, expectedData) {
   logger.info('Agent 3: verification integrite exhibit');
 
   const sourceB64 = sourcePngBuffer.toString('base64');
-  const geminiB64 = geminiPngBuffer.toString('base64');
+  const geminiB64 = styledPngBuffer.toString('base64'); // "geminiB64" conservé pour compat interne
 
   // Build the list of expected text elements for the prompt
   const expectedTexts = [];
@@ -536,7 +536,7 @@ async function verifyExhibitIntegrity(apiKey, sourcePngBuffer, geminiPngBuffer, 
   const system = `Tu es un verificateur d'integrite pour des exhibits de donnees financieres suisses.
 Tu recois 2 images:
 - IMAGE 1 : la source de verite (SVG rasterise, donnees exactes)
-- IMAGE 2 : la version stylisee (Gemini)
+- IMAGE 2 : la version stylisee (Claude SVG styling)
 
 Tu dois comparer les deux avec une precision ABSOLUE.
 
@@ -580,7 +580,7 @@ Reponds UNIQUEMENT en JSON:
     "score": 0-10,
     "issues": ["description de chaque probleme"]
   },
-  "recommendation": "use_gemini" | "use_source" | "retry_gemini",
+  "recommendation": "use_gemini" | "use_source" | "retry_gemini",  // use_gemini = utiliser version stylisée
   "reasoning": "Explication courte du verdict"
 }
 
@@ -595,7 +595,7 @@ REGLES DE VERDICT:
   const user = [
     { type: 'text', text: 'IMAGE 1 (source de verite — SVG rasterise):' },
     { type: 'image', source: { type: 'base64', media_type: 'image/png', data: sourceB64 } },
-    { type: 'text', text: 'IMAGE 2 (version stylisee — Gemini):' },
+    { type: 'text', text: 'IMAGE 2 (version stylisee — Claude SVG styling):' },
     { type: 'image', source: { type: 'base64', media_type: 'image/png', data: geminiB64 } },
   ];
 
