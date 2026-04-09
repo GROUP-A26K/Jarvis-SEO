@@ -37,9 +37,9 @@ const JSON_TRACKING_PATH = PATHS.jsonTracking;
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const opts = { dryRun: false, force: false, enrich: false, personaAutoSelected: false, imagePath: null, imageAlt: null };
-  for (let i = 0; i < args.length; i++) { switch (args[i]) { case '--site': opts.site = args[++i]; break; case '--keyword': opts.keyword = args[++i]; break; case '--persona': opts.persona = args[++i]; break; case '--image-path': opts.imagePath = args[++i]; break; case '--image-alt': opts.imageAlt = args[++i]; break; case '--dry-run': opts.dryRun = true; break; case '--force': opts.force = true; break; case '--enrich': opts.enrich = true; break; } }
-  if (!opts.site || !opts.keyword) { console.error('Usage: --site <s> --keyword <kw> [--persona <p>] [--image-path <f>] [--image-alt <t>] [--dry-run] [--force] [--enrich]'); process.exit(1); }
+  const opts = { dryRun: false, preProd: false, force: false, enrich: false, personaAutoSelected: false, imagePath: null, imageAlt: null };
+  for (let i = 0; i < args.length; i++) { switch (args[i]) { case '--site': opts.site = args[++i]; break; case '--keyword': opts.keyword = args[++i]; break; case '--persona': opts.persona = args[++i]; break; case '--image-path': opts.imagePath = args[++i]; break; case '--image-alt': opts.imageAlt = args[++i]; break; case '--dry-run': opts.dryRun = true; break; case '--pre-prod': opts.preProd = true; break; case '--force': opts.force = true; break; case '--enrich': opts.enrich = true; break; } }
+  if (!opts.site || !opts.keyword) { console.error('Usage: --site <s> --keyword <kw> [--persona <p>] [--image-path <f>] [--image-alt <t>] [--dry-run] [--pre-prod] [--force] [--enrich]'); process.exit(1); }
   if (!VALID_SITES.includes(opts.site)) { console.error(`Site inconnu: "${opts.site}"`); process.exit(1); }
   if (opts.imagePath) {
     opts.imagePath = path.resolve(opts.imagePath);
@@ -697,6 +697,130 @@ async function main() {
     const fp = path.join(dir, `article-dryrun-${opts.site.replace(/[^a-z0-9.-]/gi, '')}-${Date.now()}.json`);
     writeJSONAtomic(fp, output);
     console.log(`\n+ DRY RUN: ${fp}`);
+    if (db) db.close();
+    printUnitsSummary();
+    return;
+  }
+
+  // ─── PRE PROD ──────────────────────────────────────────────
+  // Génère texte + image hero + infographies, sans publier sur Sanity.
+  // Envoie tout par email (PDF avec images embarquées).
+  if (opts.preProd) {
+    console.log('\n> MODE PRE-PROD : génération images + infographies (sans publication Sanity)');
+    const { sendEmail } = require('./seo-shared');
+    const { generateAndUploadImage } = require('./seo-images');
+    const { generateExhibits } = require('./seo-exhibits');
+    const siteConf = getSiteConfig(opts.site);
+    const bflKey = getApiKey('BFL_API_KEY', 'bfl', 'api_key');
+
+    // Image hero (BFL Flux, pas d'upload Sanity — sanityToken null)
+    let heroImagePath = null;
+    let heroAltText = opts.keyword;
+    if (bflKey) {
+      console.log('  -> Image hero...');
+      try {
+        const imgResult = await generateAndUploadImage(opts.keyword, siteConf ? siteConf.siteContext : {}, bflKey, null, false);
+        if (imgResult && imgResult.filename) {
+          heroImagePath = path.join(PATHS.images, imgResult.filename);
+          heroAltText = imgResult.altText || opts.keyword;
+          console.log(`  + Image hero: ${imgResult.filename}`);
+        }
+      } catch (e) { logger.warn(`Image hero pre-prod échouée: ${e.message}`); }
+    }
+
+    // Exhibits (infographies, dryRun=false → génère PNG local)
+    let preProdExhibits = [];
+    console.log('  -> Infographies...');
+    try {
+      const fullText = articleFR.sections.map((s) => `${s.heading}\n${s.content}`).join('\n\n');
+      preProdExhibits = await generateExhibits(fullText, siteConf ? siteConf.siteContext : {}, opts.keyword, opts.site, articleFR.slug, false);
+      console.log(`  + ${preProdExhibits.length} infographie(s) générée(s)`);
+    } catch (e) { logger.warn(`Exhibits pre-prod échoués: ${e.message}`); }
+
+    // Build HTML complet avec images embarquées en base64
+    const toB64 = (p) => { try { return fs.readFileSync(p).toString('base64'); } catch (e) { return null; } };
+    const heroB64 = heroImagePath ? toB64(heroImagePath) : null;
+    const heroExt = heroImagePath ? path.extname(heroImagePath).replace('.', '') || 'jpg' : 'jpg';
+
+    let htmlSections = '';
+    let exhibitIdx = 0;
+    const totalSections = articleFR.sections.length;
+    const insertAfterPP = new Set();
+    if (preProdExhibits.length === 1) insertAfterPP.add(Math.max(0, Math.floor(totalSections / 2) - 1));
+    else if (preProdExhibits.length >= 2) { insertAfterPP.add(Math.max(0, Math.floor(totalSections / 3) - 1)); insertAfterPP.add(Math.max(1, Math.floor((totalSections * 2) / 3) - 1)); }
+
+    for (let i = 0; i < articleFR.sections.length; i++) {
+      const sec = articleFR.sections[i];
+      htmlSections += `<h2>${sec.heading}</h2>`;
+      for (const p of sec.content.split('\n\n').filter(Boolean)) htmlSections += `<p>${p}</p>`;
+      if (insertAfterPP.has(i) && exhibitIdx < preProdExhibits.length) {
+        const ex = preProdExhibits[exhibitIdx++];
+        const exB64 = toB64(ex.pngPath);
+        if (exB64) htmlSections += `<div class="exhibit"><img src="data:image/png;base64,${exB64}" alt="${ex.altText || ''}" style="max-width:100%;border:1px solid #e0e0e0;border-radius:4px;"/><p class="caption">${ex.altText || ''}</p></div>`;
+      }
+    }
+
+    const faqHtml = articleFR.faq && articleFR.faq.length > 0
+      ? `<h2>Questions fréquentes</h2>${articleFR.faq.map((f) => `<p class="faq-q">Q : ${f.question}</p><p>${f.answer}</p>`).join('')}`
+      : '';
+
+    const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+<style>
+  body{font-family:Georgia,serif;max-width:800px;margin:40px auto;color:#1a1a2e;line-height:1.7;padding:0 20px}
+  h1{color:#1a1a2e;font-size:24px;border-bottom:3px solid #2c5f7c;padding-bottom:10px}
+  h2{color:#2c5f7c;font-size:18px;margin-top:28px}
+  .meta{background:#f5f5f0;border-left:4px solid #2c5f7c;padding:10px 14px;margin:16px 0;font-size:13px}
+  .badge{display:inline-block;background:#27ae60;color:white;padding:3px 8px;border-radius:3px;font-size:12px;margin-right:6px}
+  .hero{width:100%;max-height:300px;object-fit:cover;border-radius:6px;margin:16px 0}
+  .exhibit{margin:24px 0;text-align:center}
+  .caption{font-size:13px;color:#666;font-style:italic;margin-top:6px}
+  .faq-q{font-weight:bold;margin-top:14px}
+  blockquote{background:#f9f9f4;border-left:3px solid #e8d5b7;padding:8px 14px;font-size:12px;color:#666;font-style:italic}
+  .header{font-size:12px;color:#666;margin-bottom:20px}
+</style></head><body>
+<div class="header"><strong>PRE-PROD</strong> — medcourtage.ch — Persona: ${opts.persona}<br>
+<span class="badge">GEO ${geoScore.total}/100</span><span class="badge" style="background:#2c5f7c">Coverage ${topicalCoverage.score}/10</span></div>
+<h1>${articleFR.title}</h1>
+<div class="meta"><strong>Meta title :</strong> ${articleFR.metaTitle || ''}<br><strong>Meta desc :</strong> ${articleFR.metaDescription || ''}<br><strong>Slug :</strong> /${articleFR.slug}</div>
+<p><em>${articleFR.summary || ''}</em></p>
+${heroB64 ? `<img class="hero" src="data:image/${heroExt};base64,${heroB64}" alt="${heroAltText}"/>` : '<p><em>[Image hero non disponible]</em></p>'}
+${htmlSections}${faqHtml}
+<blockquote>${disclaimer}</blockquote>
+</body></html>`;
+
+    // Générer PDF
+    const ppDir = PATHS.reports; ensureDir(ppDir);
+    const htmlPath = path.join(ppDir, `preprod-${opts.site.replace(/[^a-z0-9.-]/gi, '')}-${Date.now()}.html`);
+    const pdfPath = htmlPath.replace('.html', '.pdf');
+    fs.writeFileSync(htmlPath, html);
+
+    await new Promise((resolve, reject) => {
+      const { exec: execChild } = require('child_process');
+      execChild(`wkhtmltopdf --page-size A4 --margin-top 15mm --margin-bottom 15mm --margin-left 15mm --margin-right 15mm --encoding utf-8 "${htmlPath}" "${pdfPath}"`, (err) => {
+        if (err) reject(err); else resolve();
+      });
+    });
+
+    // Envoyer par email
+    const pdfB64 = fs.readFileSync(pdfPath).toString('base64');
+    const slug = articleFR.slug || opts.keyword.replace(/\s+/g, '-');
+    await sendEmail(
+      `[PRE-PROD] ${articleFR.title} | ${opts.site}`,
+      `<p>Bonjour,</p><p>Voici le <strong>Pre-Prod</strong> de l'article avec images et infographies :</p>
+<ul>
+  <li><strong>Site :</strong> ${opts.site}</li>
+  <li><strong>Keyword :</strong> ${opts.keyword}</li>
+  <li><strong>Titre :</strong> ${articleFR.title}</li>
+  <li><strong>GEO :</strong> ${geoScore.total}/100 (${geoScore.status})</li>
+  <li><strong>Coverage :</strong> ${topicalCoverage.score}/10</li>
+  <li><strong>Image hero :</strong> ${heroImagePath ? '✅ générée' : '❌ non disponible'}</li>
+  <li><strong>Infographies :</strong> ${preProdExhibits.length} générée(s) (${preProdExhibits.filter((e) => e.usedGemini).length} avec Gemini)</li>
+</ul>
+<p>L'article complet avec images est en pièce jointe (PDF).</p>
+<hr><p style="font-size:12px;color:#666;">Jarvis One · Chief Assistant · A26K Group · jarvis@groupe-genevoise.ch</p>`,
+      [{ filename: `preprod-${slug}.pdf`, content: pdfB64 }]
+    );
+    console.log(`\n+ PRE-PROD email envoyé | PDF: ${pdfPath}`);
     if (db) db.close();
     printUnitsSummary();
     return;
