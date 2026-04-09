@@ -868,11 +868,18 @@ function verifyUrl(url, timeoutMs) {
     try {
       const parsed = new URL(url);
       const proto = parsed.protocol === 'https:' ? https : http;
+      const headers = {
+        'User-Agent': 'Mozilla/5.0 (compatible; JarvisBot/1.0)',
+        'Accept': 'text/html,application/xhtml+xml,*/*',
+      };
       const req = proto.request({
         hostname: parsed.hostname,
         path: parsed.pathname + parsed.search,
-        method: 'HEAD',
+        method: 'GET', // GET plutôt que HEAD — certains serveurs .ch rejettent HEAD (400/403)
+        headers,
       }, (res) => {
+        res.resume(); // drain response body
+        // 200-399 = ok (inclut les 301/302 redirects)
         resolve({ url, status: res.statusCode, ok: res.statusCode >= 200 && res.statusCode < 400 });
       });
       req.on('error', () => resolve({ url, status: 0, ok: false }));

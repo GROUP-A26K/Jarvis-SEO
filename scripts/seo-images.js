@@ -516,7 +516,11 @@ async function postProcess(inputBuffer, pp) {
     for (let i = 0; i < noiseBuffer.length; i++) {
       noiseBuffer[i] = Math.floor(128 + (Math.random() - 0.5) * 2 * pct * 2.55);
     }
-    const noise = await sharp(noiseBuffer, { raw: { width, height, channels: 1 } }).jpeg().toBuffer();
+    // PNG lossless + resize explicite pour garantir dimensions identiques (évite "same dimensions" error)
+    const noise = await sharp(noiseBuffer, { raw: { width, height, channels: 1 } })
+      .resize(width, height)
+      .png()
+      .toBuffer();
     img = img.composite([{ input: noise, blend: 'overlay', gravity: 'centre' }]);
   }
 
