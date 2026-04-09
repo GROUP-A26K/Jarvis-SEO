@@ -465,7 +465,7 @@ function buildTOC(article) {
  *   wysiwygBlock → blockTitle: { _type: 'document', title, content: [...blocks, ...photoZones] }
  *   faqBlock     → blockTitle: { title }, faqs: [{ _type: 'faqItem', question, answer }]
  */
-function buildSanityBody(article, disclaimer, exhibitAssetIds) {
+function buildSanityBody(article, disclaimer, exhibitAssetIds, keyword) {
   let k = 0;
   const tb = (t, s) => ({ _type: 'block', _key: `b_${k++}`, style: s || 'normal', children: [{ _type: 'span', _key: `s_${k++}`, text: t, marks: [] }], markDefs: [] });
   const exhibits = exhibitAssetIds && exhibitAssetIds.length > 0 ? [...exhibitAssetIds] : [];
@@ -496,15 +496,17 @@ function buildSanityBody(article, disclaimer, exhibitAssetIds) {
     // Exhibit (photoZone) after this section if applicable
     if (insertAfter.has(i) && exhibits.length > 0) {
       const ex = exhibits.shift();
-      const altText = (ex.altText || '').slice(0, 160);
+      const photoAlt = (ex.altText || '').slice(0, 160);
+      // imageTitle enrichi avec le keyword pour le SEO (crawlers), photoAlt reste descriptif (accessibilité)
+      const imageTitle = `${keyword} — ${ex.altText || ''}`.slice(0, 160);
       content.push({
         _type: 'photoZone',
         _key: `exhibit_${k++}`,
         mainPhoto: {
           _type: 'document',
-          imageTitle: altText,
+          imageTitle,
           photo: { _type: 'image', asset: { _type: 'reference', _ref: ex.assetId } },
-          photoAlt: altText,
+          photoAlt,
         },
       });
     }
@@ -607,7 +609,7 @@ async function uploadImageToSanity(imagePath, seoFilename) {
   });
 }
 
-async function publishToSanity(site, article, lang, persona, geoScore, disclaimer, imageAssetId, imageAlt, exhibitAssetIds) {
+async function publishToSanity(site, article, lang, persona, geoScore, disclaimer, imageAssetId, imageAlt, exhibitAssetIds, keyword) {
   let token; try { const s = loadSecret('sanity'); token = s.token || s.api_token; } catch (e) { throw new Error(`Sanity token requis. ${e.message}`); }
   const slug = lang === 'en' ? `en/${article.slug}` : article.slug;
   const docId = `article-${slug.replace(/\//g, '-')}-${Date.now()}`;
@@ -628,7 +630,7 @@ async function publishToSanity(site, article, lang, persona, geoScore, disclaime
     author: { _type: 'reference', _ref: DEFAULT_AUTHOR_ID },
     category: [{ _key: `cat_${Date.now()}`, _type: 'reference', _ref: DEFAULT_CATEGORY_ID }],
     mainPhoto,
-    body: buildSanityBody(article, disclaimer, exhibitAssetIds),
+    body: buildSanityBody(article, disclaimer, exhibitAssetIds, keyword),
     metaTitle: article.metaTitle || article.title, metaDescription: article.metaDescription || article.summary,
     persona, geoScore: geoScore.total, geoStatus: geoScore.status, disclaimer,
     publishedAt: new Date().toISOString(),
@@ -801,12 +803,12 @@ async function main() {
 
   let publishedDocId = null;
   try {
-    const resFR = await publishToSanity(opts.site, articleFR, 'fr', opts.persona, geoScore, disclaimer, imageAssetId, imageAlt, exhibitAssetIds);
+    const resFR = await publishToSanity(opts.site, articleFR, 'fr', opts.persona, geoScore, disclaimer, imageAssetId, imageAlt, exhibitAssetIds, opts.keyword);
     console.log(`  + FR: ${resFR.docId}`);
     publishedDocId = resFR.docId;
   } catch (err) { console.error(`  ! Sanity FR: ${err.message}`); }
   try {
-    const resEN = await publishToSanity(opts.site, articleEN, 'en', opts.persona, geoScore, disclaimer, imageAssetId, imageAlt, exhibitAssetIds);
+    const resEN = await publishToSanity(opts.site, articleEN, 'en', opts.persona, geoScore, disclaimer, imageAssetId, imageAlt, exhibitAssetIds, opts.keyword);
     console.log(`  + EN: ${resEN.docId}`);
   } catch (err) { console.error(`  ! Sanity EN: ${err.message}`); }
   if (publishedDocId) {
