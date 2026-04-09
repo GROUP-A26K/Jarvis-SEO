@@ -3,6 +3,8 @@ secrets/
 
 # Runtime data
 data/
+*.db
+*.db-journal
 images/
 reports/
 logs/
@@ -15,5 +17,20 @@ package-lock.json
 .DS_Store
 Thumbs.db
 
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Lock files (advisory)
+*.lock
+
+# Temp & backup files
+*.tmp.*
+*.bak
+*.bak.*
+
 # Env
 .env
+.env.*

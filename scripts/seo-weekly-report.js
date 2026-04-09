@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const {
-  PATHS, logger, validateEnv, ensureDir,
+  PATHS, logger, validateEnv, ensureDir, requireAnthropicKey,
   loadSecret, getSiteList, getSiteLabels,
   rateLimitedSemrushGet, trackUnits, printUnitsSummary,
   callClaudeWithRetry, extractClaudeText,
@@ -342,7 +342,7 @@ async function main() {
 
   const googleOAuth = loadSecret('google-oauth');
   const semrush = loadSecret('semrush');
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const anthropicKey = requireAnthropicKey();
 
   let token = null;
   try { token = await getGoogleToken(googleOAuth); console.log('  + Google token'); } catch (e) { console.error(`  ! Google: ${e.message}`); }

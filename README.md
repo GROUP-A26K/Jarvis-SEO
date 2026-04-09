@@ -1,6 +1,6 @@
 # Jarvis SEO v7 — Groupe Genevoise
 
-Workflow SEO automatise pour les 5 sites du Groupe Genevoise.
+Workflow SEO automatise pour les sites du Groupe Genevoise.
 **Jarvis One** — A26K Group.
 
 ---
@@ -9,148 +9,122 @@ Workflow SEO automatise pour les 5 sites du Groupe Genevoise.
 
 ```
 scripts/
-  seo-shared.js              # Module partage (rate limiter, units, Claude retry, URL verify)
+  seo-shared.js              # Module central (58 exports)
   seo-gap-analysis.js        # Script 1 : gap analysis
   seo-publish-article.js     # Script 2 : publication article
   seo-weekly-report.js       # Script 3 : rapport hebdomadaire
   seo-orchestrator.js        # Script 4 : orchestrateur workflow
-  README.md
+  seo-images.js              # Script 5 : pipeline images AI
 sites/
-  config.json                # Configuration partagee des 5 sites (siteContext, imageStyle, personas)
-secrets/
+  config.json                # Configuration centralisee (single source of truth)
+tests/
+  test-all.js                # 65 tests unitaires
+secrets/                     # .gitignore — JAMAIS commite
   semrush.json               # { "api_key": "...", "plan": "standard" }
   google-oauth.json           # OAuth2 credentials
   sanity.json                # { "token": "..." }
   resend.json                # { "api_key": "...", "from": "noreply@..." }
-data/
-  seo-tracking.db            # SQLite (auto-cree)
+data/                        # Runtime, auto-genere
+  seo-tracking.db            # SQLite
   articles-tracking.json     # JSON fallback
-  semrush-units.json         # Compteur units (auto)
-  semrush-domain-history.json # Historique volumes (validation)
-  pipeline-state.json        # Etat du pipeline orchestrateur
-  style_memory.json          # Prompts PASS recents (script images)
-  lessons_learned.json       # Corrections Agent 2 (script images)
-  prompt_cache.json          # Cache thematique prompts (script images)
-images/
-  plan-{slug}.json           # Contrat d'interface orchestrateur → script images
-  result-{slug}.json         # Metadonnees SEO produites par le script images
-  {slug}-{desc}-hero.jpg     # Images produites par le script images
-  {slug}-{desc}-inline.jpg
-reports/
-  gap-analysis-YYYY-MM-DD.json
-  plan-YYYY-WNN.json         # Plan strategique
-  plan-approved-YYYY-WNN.json # Plan approuve (optionnel)
-  seo-weekly-YYYY-WNN.html/json/pdf
-  article-dryrun-*.json
+  semrush-units.json         # Compteur units
+  pipeline-state.json        # Etat du pipeline
+  style_memory.json          # Prompts PASS (images)
+  lessons_learned.json       # Corrections Agent 2
+  prompt_cache.json          # Cache thematique prompts
+images/                      # Images generees
+reports/                     # Rapports generes
 ```
+
+## Module central : `seo-shared.js`
+
+58 exports couvrant :
+
+- **Logger structure** : `logger.info/warn/error/debug` avec formatage uniforme
+- **Paths** : `PATHS.reports`, `PATHS.db`, `PATHS.images`, etc.
+- **Config dynamique** : `getSiteList()`, `getSiteConfig(site)`, `getSiteLabels()`, `getSanityDefaults()`, `getSanityDocType(site)`, `getPersonaDetails(persona)`, `getSitePersonas(site)`, `getSiteFallbackCompetitors(site)`, `getSiteSources(site)`, `getSiteEntity(site)`, `getSiteFinma(site)`
+- **File I/O** : ecriture atomique (`writeJSONAtomic`), file-lock (`withLockedJSON`)
+- **HTTP** : `httpRequest()` avec timeouts configurables
+- **Semrush** : rate limiter 8 req/s, retry 429 backoff exponentiel (3 retries), circuit breaker
+- **Claude API** : retry avec backoff (1s/3s/9s), support vision/multimodal, circuit breaker, validation reponse 5MB
+- **Circuit breakers** : claude, semrush, flux, sanity (seuils/cooldowns configurables)
+- **Timeouts** : 9 services configurables (claude 180s, semrush 15s, sanity 30s, flux 60s, etc.)
+- **Securite** : `sanitize()`, `sanitizeFilename()`, `sanitizeArticleForLLM()`, `esc()`, `validateEnv()`, `validateArticleInput()`
 
 ## Prerequis
 
 - Node.js 18+
-- `npm install better-sqlite3` (optionnel, JSON fallback)
+- `npm install` (better-sqlite3, sharp)
 - `wkhtmltopdf` (optionnel, pour PDF)
 - `ANTHROPIC_API_KEY` en variable d'environnement
+- `BFL_API_KEY` pour generation images (optionnel)
 
----
-
-## Module partage : `seo-shared.js`
-
-Fonctions partagees entre les 3 scripts :
-
-- **Rate limiter Semrush** : queue serialisee 8 req/s, retry 429 automatique
-- **Units tracker** : compteur 50k units/mois, alerte 80%, reset mensuel
-- **Claude API retry** : 3 tentatives, backoff 1s/3s/9s, retry sur 529/500/timeout
-- **Validation Semrush** : alerte si un domaine retourne < 30% de son historique
-- **URL verification** : HEAD request pour verifier les liens sources
-
----
-
-## Script 1 : `seo-gap-analysis.js`
+## Commandes
 
 ```bash
-node scripts/seo-gap-analysis.js
-node scripts/seo-gap-analysis.js --site medcourtage.ch
+npm test                          # 65 tests unitaires
+npm run gap                       # Gap analysis
+npm run gap -- --site medcourtage.ch
+npm run publish -- --site medcourtage.ch --keyword "rc pro medecin" --dry-run
+npm run plan                      # Orchestrateur : plan strategique
+npm run execute                   # Orchestrateur : dry-runs + briefs DA
+npm run deploy                    # Orchestrateur : publication
+npm run status                    # Etat du pipeline
+npm run images                    # Pipeline images (tous les plans)
+npm run images:dry                # Images dry-run (LLM seul)
+npm run report                    # Rapport hebdomadaire
 ```
 
-Features :
+## Configuration : `sites/config.json`
 
-- Keyword gap intent-weighted (transactional x2.0, commercial x1.5)
-- **Concurrents dynamiques** via `domain_organic_organic` (fallback sur hardcodes)
-- **Trending keywords** : top 5 gaps enrichis avec tendance 12 mois
-- **Featured snippets analysis** : gaps + capturable (pos 2-10 avec FS existant)
-- Content gap par URL (pages thematiques manquantes, coverage < 30%)
-- Cannibalization check (meme keyword, plusieurs URLs, top 50)
-- Cluster detection (pillar/cluster opportunities)
-- Semrush data validation (alerte si volumes anormaux)
+Single source of truth. Ajouter un site = ajouter une entree, zero changement dans les scripts.
 
----
-
-## Script 2 : `seo-publish-article.js`
-
-```bash
-# Dry-run avec persona auto-select
-node scripts/seo-publish-article.js --site medcourtage.ch --keyword "rc pro medecin geneve" --dry-run
-
-# Publication avec persona explicite
-node scripts/seo-publish-article.js --site fiduciaire-genevoise.ch --keyword "creer sa sarl geneve" --persona "Elodie Rochat"
-
-# Forcer republication
-node scripts/seo-publish-article.js --site medcourtage.ch --keyword "rc pro medecin geneve" --force
+```json
+{
+  "_meta": {
+    "sanityDefaults": { "projectId": "...", "dataset": "...", ... },
+    "personasDetails": { "Hugo Schaller": { "style": "..." }, ... }
+  },
+  "monsite.ch": {
+    "label": "Mon Site",
+    "entity": "Mon Entreprise SA",
+    "verticale": "Mon Secteur",
+    "finma": null,
+    "siteContext": { "secteur": "...", "ton": "...", "public": "...", "palette": [...] },
+    "sources": "source1.ch, source2.ch",
+    "personas": ["Persona 1", "Persona 2"],
+    "fallbackCompetitors": ["concurrent1.ch", "concurrent2.ch"],
+    "sanity": { "documentType": "monsiteBlogPost" },
+    "imageStyle": { ... }
+  }
+}
 ```
 
-| Flag | Description |
-|------|-------------|
-| `--site` | Site cible (requis) |
-| `--keyword` | Mot-cle cible (requis) |
-| `--persona` | Persona (optionnel, auto-select si absent) |
-| `--dry-run` | Pas de publication, sauvegarde JSON |
-| `--force` | Ignore le check anti-duplication |
+## Workflow complet
 
-Pipeline en 6 etapes :
+1. **Gap analysis** (lundi 6h) : `npm run gap`
+2. **Plan strategique** (lundi 6h30) : `npm run plan` → email de review
+3. **Review humain** : modifier `plan-approved-YYYY-WNN.json`
+4. **Execution** : `npm run execute` → dry-runs + briefs images
+5. **Images** : `npm run images` → generation AI (Flux 2)
+6. **Publication** : `npm run deploy` → Sanity CMS
+7. **Rapport** (lundi 8h) : `npm run report` → email + PDF
 
-1. Brief semantique (Semrush overview + related + SERP top 5)
-2. Redaction FR avec **citation-ready snippets** et **sourceUrls**
-   - Extraits citables (20-40 mots, fait + chiffre + source)
-   - URLs sources completes (https://admin.ch/...)
-   - **Verification URLs** par HEAD request (liens morts supprimes)
-3. Traduction EN avec adaptation keyword (volume check CH)
-4. Score GEO 100 pts sur 7 dimensions :
-   - P1 Cleanness (15), P2 Persona (20), P3 GEO (25)
-   - P4 Perplexity **sliding window 200 mots** (15)
-   - P5 Schema (10), P6 Citations (10), **P7 Sources verifiees (5)**
-   - **Topical coverage validation** via Claude (score 0-10, declenche patch si < 5)
-   - Patch cible (vs reecriture complete) si score < 65 ou coverage < 5
-5. **Disclaimer contextuel** genere par Claude (unique par article, fallback statique)
-6. Publication Sanity avec :
-   - **Sommaire/TOC** dans le body Portable Text
-   - **Article schema JSON-LD** (auteur persona, publisher entite legale, datePublished)
-   - **Speakable schema** pointant vers citableExtracts
-   - FAQ schema JSON-LD
-   - **GEO visibility monitoring** (cited/partial/absent via Claude)
+## Securite
 
-Apres publication : tracking SQLite/JSON (J+30/60/90), maillage interne.
+- Zero SQL interpolation (mapping statique de requetes preparees)
+- Zero `execSync` (uniquement `execFileSync`, pas d'injection shell)
+- Zero `catch {}` silencieux (tous logges)
+- Zero secrets dans le code (`.gitignore` protege `secrets/`)
+- Validation des reponses externes (taille max, MIME, format)
+- Validation `validateEnv()` au demarrage de chaque script
+- `sanitizeArticleForLLM()` contre l'injection de prompts
+- Circuit breakers pour eviter le spam de services en panne
+- Ecriture atomique (tmp + rename) + file-lock pour les fichiers partages
 
----
+## GEO Visibility
 
-## Script 3 : `seo-weekly-report.js`
-
-```bash
-node scripts/seo-weekly-report.js
-node scripts/seo-weekly-report.js --week 2026-W14
-```
-
-Features :
-
-- GSC data + Semrush positions par site
-- Tracking article par article J+30/60/90 (domain cache)
-- **CTR monitoring** : compare CTR reel vs attendu par position, alerte si ratio < 50%
-- **Content decay detection** : articles 6+ mois avec perte de 10+ positions vs meilleur historique
-- **GEO visibility recurrent** : recheck max 5 articles/run via Claude
-- Rapport HTML professionnel (KPIs, business lines, tracking, CTR alertes, content decay, GEO visibility, top 3 gaps)
-- PDF via wkhtmltopdf
-- Email leger (resume + nombre alertes) + PDF en PJ via Resend
-
----
+La fonction `checkGEOVisibility` est une **heuristique** : elle demande a Claude d'estimer si un article serait cite par Google AI Overview ou Perplexity. Claude n'a pas acces aux donnees reelles de ces services — le score est une estimation basee sur la structure de l'article, ses citations, et son ancrage thematique. Utile comme indicateur relatif, pas comme metrique absolue.
 
 ## Personas (8)
 
@@ -165,92 +139,30 @@ Features :
 | Philippe Dufour | assurance-genevoise.ch |
 | Nathalie Berger | assurance-genevoise.ch |
 
+## Exhibits (infographies de donnees)
+
+Pipeline de generation d'exhibits style BCG : tableaux comparatifs, timelines, metriques cles.
+
+Architecture : Claude (donnees) → SVG pixel-perfect → Sharp (PNG 2x) → Gemini 3.1 Flash (style editorial) → Agent 3 (verification integrite) → Sanity.
+
+L'Agent 3 compare le SVG source et la version Gemini : si un seul chiffre, mot ou reference legale est altere, fallback automatique sur le SVG rasterise. Max 3 retries Gemini.
+
+Chaque site a son propre style editorial (`exhibitStyle` dans `config.json`) : palette, texture, directive Gemini.
+
+```bash
+npm run exhibits:test           # Genere un exhibit de test
+npm run exhibits:dry            # Dry-run (SVG seulement, pas de Gemini)
+```
+
 ## Cron suggere
 
 ```cron
 # Gap analysis : lundi 6h
 0 6 * * 1 cd /path/to/project && node scripts/seo-gap-analysis.js >> logs/gap.log 2>&1
 
-# Orchestrateur plan : lundi 6h30
-30 6 * * 1 cd /path/to/project && ANTHROPIC_API_KEY=sk-... node scripts/seo-orchestrator.js --plan >> logs/orchestrator.log 2>&1
+# Plan : lundi 6h30
+30 6 * * 1 cd /path/to/project && node scripts/seo-orchestrator.js --plan >> logs/orchestrator.log 2>&1
 
-# Rapport hebdo : lundi 8h
-0 8 * * 1 cd /path/to/project && ANTHROPIC_API_KEY=sk-... node scripts/seo-weekly-report.js >> logs/weekly.log 2>&1
+# Rapport : lundi 8h
+0 8 * * 1 cd /path/to/project && node scripts/seo-weekly-report.js >> logs/weekly.log 2>&1
 ```
-
----
-
-## Script 4 : `seo-orchestrator.js`
-
-Orchestrateur du workflow SEO. Coordonne gap analysis, publication, et agent DA/images.
-
-```bash
-# Phase 1: Analyse + plan strategique (Claude Strategist)
-node scripts/seo-orchestrator.js --plan
-
-# Phase 2: Execute les dry-runs + genere les briefs DA
-node scripts/seo-orchestrator.js --execute
-
-# Phase 3: Publie les articles approuves
-node scripts/seo-orchestrator.js --publish
-
-# Etat du pipeline
-node scripts/seo-orchestrator.js --status
-```
-
-### Workflow complet
-
-1. **`--plan`** : charge le gap analysis + tracking + budget units. Appelle Claude Strategist pour selectionner les meilleurs articles de la semaine avec raisonnement strategique (diversification clusters, trending, featured snippets, content refresh). Produit `plan-YYYY-WNN.json` et envoie un email de review.
-
-2. **Review humain** : modifier le plan JSON (mettre `status: "approved"` sur les articles valides). Ou creer un fichier `plan-approved-YYYY-WNN.json`.
-
-3. **`--execute`** : pour chaque article approuve, lance un dry-run (script 2 `--dry-run`). Genere des briefs DA dans `images/brief-*.json` pour l'agent images. Verifie si les images sont pretes (convention: `images/{slug}-hero.*`). Peut etre relance plusieurs fois (idempotent).
-
-4. **Agent DA/Images** : recoit les briefs, produit les images, les depose dans `images/`.
-
-5. **`--publish`** : publie les articles prets via le script 2 (sans `--dry-run`, avec `--force`). Envoie un email de resume.
-
-### Pipeline state
-
-L'etat du pipeline est stocke dans `data/pipeline-state.json`. Chaque article a un statut :
-
-```
-planned -> approved -> dry_run_done -> ready_for_review -> published
-                    -> dry_run_failed
-                                                        -> publish_failed
-```
-
-### Image Plans (contrat d'interface script images)
-
-L'orchestrateur depose dans `images/plan-{slug}.json` un contrat que le script images (`seo-images.js`) consomme :
-
-```json
-{
-  "slug": "rc-pro-medecin-geneve",
-  "site": "medcourtage.ch",
-  "persona": "Hugo Schaller",
-  "keyword": "rc pro medecin geneve",
-  "dryRunPath": "reports/article-dryrun-medcourtage.ch-1712487600.json",
-  "siteContext": {
-    "secteur": "Assurance medicale / courtage sante",
-    "ton": "Expert, technique, ancrage FINMA et FMH",
-    "public": "Medecins FMH, professions liberales medicales",
-    "palette": ["#1a1a2e", "#2c5f7c", "#e8d5b7"],
-    "exemples_articles": "RC Pro medecin, prevoyance LPP..."
-  }
-}
-```
-
-Le script images lit ce plan, charge l'article depuis le dry-run, execute Agent 0 (plan d'illustration) → Agent 1 (prompts Flux 2) → Flux batch → Agent 2 (evaluation) → Sharp (post-traitement), et depose :
-
-- `images/{slug}-{descripteur}-{role}.jpg` : les images finales
-- `images/result-{slug}.json` : metadonnees SEO (filenames, alt_text, positions, couts)
-
-L'orchestrateur detecte `result-{slug}.json` au prochain `--execute` et passe l'article en `ready_for_review`.
-
-## Sites
-
-- medcourtage.ch (Assurance medicale, FINMA)
-- fiduciaire-genevoise.ch / fiduciairevaudoise.ch (Fiduciaire GE/VD)
-- relocation-genevoise.ch (Relocation)
-- assurance-genevoise.ch (Courtage assurance, FINMA)
