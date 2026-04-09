@@ -418,4 +418,6 @@ async function main() {
   console.log('========================================\n');
 }
 
-main().catch((err) => { console.error(`\n! Fatal: ${err.message}`); process.exit(1); });
+if (require.main === module) {
+  main().catch((err) => { console.error(`\n! Fatal: ${err.message}`); process.exit(1); });
+}
