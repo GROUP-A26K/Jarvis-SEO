@@ -13,7 +13,7 @@ const {
   loadSecret, getSiteConfig, getSiteList,
   getSanityDefaults, getSanityDocType, getPersonaDetails, getSitePersonas,
   getSiteSources, getSiteEntity, getSiteFinma, getSiteStableSources,
-  rateLimitedSemrushGet, trackUnits, printUnitsSummary,
+  rateLimitedSemrushGet, rateLimitedSemrushRequest, trackUnits, printUnitsSummary,
   callClaudeWithRetry, extractClaudeText, verifyUrl,
   httpRequest, readJSONSafe, writeJSONAtomic, withLockedJSON,
   TIMEOUTS, VALID_PERSONAS, sanitizeErrorMessage,
@@ -121,6 +121,19 @@ function validateArticleJSON(article) {
   if (!article.title || typeof article.title !== 'string') errors.push('title manquant ou invalide');
   if (!article.sections || !Array.isArray(article.sections) || article.sections.length === 0) errors.push('sections manquant ou vide');
 
+  // --- Title length guard (SEO: max 70 chars) ---
+  if (article.title && article.title.length > 70) {
+    // Fallback: use metaTitle if already set and shorter, otherwise truncate at last word boundary
+    if (article.metaTitle && article.metaTitle.length <= 70) {
+      article.title = article.metaTitle;
+      fixes.push(`title trop long (${article.title.length} chars) → remplacé par metaTitle`);
+    } else {
+      const truncated = article.title.slice(0, 70).replace(/\s\S+$/, '').trimEnd();
+      article.title = truncated;
+      fixes.push(`title tronqué à 70 chars: "${truncated}"`);
+    }
+  }
+
   // --- Auto-fixable fields ---
   if (!article.slug || typeof article.slug !== 'string') {
     if (article.title) {
@@ -216,10 +229,57 @@ Retourne le JSON COMPLET corrige avec la meme structure:
 
 // ─── Etape 2 : Redaction FR (avec validation + repair) ───────
 
-async function writeArticleFR(apiKey, site, keyword, persona, brief, patchInstructions) {
+/**
+ * Fetch real verified source URLs via Semrush organic results + HTTP HEAD check.
+ * Returns up to 5 verified URLs for authoritative sources on the keyword.
+ */
+async function fetchVerifiedSources(keyword, semrushApiKey) {
+  const candidates = [];
+
+  // Semrush phrase_organic: URLs currently ranking for the keyword
+  for (const db of ['ch', 'fr']) {
+    try {
+      const rows = await rateLimitedSemrushRequest({
+        type: 'phrase_organic',
+        key: semrushApiKey,
+        phrase: keyword,
+        database: db,
+        display_limit: 15,
+        export_columns: 'Ur,Dn,Po',
+      });
+      for (const row of rows) {
+        const url = row.Ur || row.Url;
+        if (url && url.startsWith('https://')) candidates.push(url);
+      }
+    } catch (e) { logger.warn(`fetchVerifiedSources Semrush (${db}): ${e.message}`); }
+    if (candidates.length >= 15) break;
+  }
+
+  if (candidates.length === 0) {
+    logger.info('fetchVerifiedSources: aucun résultat Semrush, pas de sources injectées');
+    return [];
+  }
+
+  // Verify URLs via HTTP HEAD — keep only reachable ones (max 5)
+  const verified = [];
+  for (const url of candidates) {
+    if (verified.length >= 5) break;
+    try {
+      const ok = await verifyUrl(url, 5000);
+      if (ok) { verified.push(url); logger.info(`  source vérifiée: ${url}`); }
+    } catch (e) { /* skip */ }
+  }
+
+  logger.info(`fetchVerifiedSources: ${verified.length}/${candidates.length} URLs vérifiées`);
+  return verified;
+}
+
+async function writeArticleFR(apiKey, site, keyword, persona, brief, patchInstructions, injectedSources) {
   console.log(patchInstructions ? '  -> Patch...' : '\n> Etape 2 : Redaction FR');
   const sources = getSiteSources(site);
-  const stableSources = getSiteStableSources(site);
+  const stableSources = injectedSources && injectedSources.length > 0
+    ? injectedSources
+    : getSiteStableSources(site);
   const stableSourcesBlock = stableSources.length > 0
     ? `\nIMPORTANT: utilise UNIQUEMENT ces URLs exactes dans "sourceUrls" (verifiees et stables):\n${stableSources.join('\n')}\nNe pas inventer d'autres URLs.`
     : '';
@@ -233,7 +293,7 @@ Structure: H1, intro, 4-6 H2 en questions, conclusion CTA. Mots-cles: ${relatedK
 IMPORTANT: dans chaque section, 1+ "citation-ready snippet" (20-40 mots, fait verifiable + chiffre + source).
 IMPORTANT: cite des sources avec URLs completes (https://...) dans "sourceUrls".
 JSON:
-{ "title": "H1", "slug": "slug-url", "summary": "Resume 2 phrases",
+{ "title": "H1 - MAX 70 caractères, concis et accrocheur", "slug": "slug-url", "summary": "Resume 2 phrases",
   "sections": [{ "heading": "H2?", "content": "Texte (\\n\\n)" }],
   "faq": [{ "question": "Q", "answer": "R" }],
   "citableExtracts": ["Selon X, fait Y."],
@@ -665,7 +725,18 @@ async function main() {
   const db = initDB();
 
   const brief = await buildBrief(semrush.api_key, opts.keyword);
-  let articleFR = await writeArticleFR(apiKey, opts.site, opts.keyword, opts.persona, brief, null);
+
+  // Fetch real verified source URLs before writing (Semrush organic → HTTP check)
+  console.log('\n> Sources : recherche URLs réelles via Semrush...');
+  const verifiedSources = await fetchVerifiedSources(opts.keyword, semrush.api_key);
+  if (verifiedSources.length > 0) {
+    console.log(`  + ${verifiedSources.length} source(s) vérifiée(s) injectée(s) dans le prompt`);
+    verifiedSources.forEach((u) => console.log(`    - ${u}`));
+  } else {
+    console.log('  ~ Aucune source Semrush trouvée — Claude utilisera ses propres sources');
+  }
+
+  let articleFR = await writeArticleFR(apiKey, opts.site, opts.keyword, opts.persona, brief, null, verifiedSources);
 
   // Verify source URLs
   await verifySourceUrls(articleFR);
