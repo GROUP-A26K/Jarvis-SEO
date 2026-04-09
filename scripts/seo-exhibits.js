@@ -406,7 +406,7 @@ OUTPUT: Single image, same aspect ratio as source, high resolution.`;
     }
   });
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${geminiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${geminiKey}`;
 
   return new Promise((resolve, reject) => {
     const p = new URL(url);
