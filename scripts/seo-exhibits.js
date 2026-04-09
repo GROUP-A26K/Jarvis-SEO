@@ -318,6 +318,41 @@ POUR TYPE "matrix":
 /**
  * Rasterize SVG string to PNG buffer at 2x resolution.
  */
+/**
+ * Attempt to repair a malformed SVG:
+ * - Close unclosed <text>, <tspan>, <g>, <rect> tags
+ * - Ensure root <svg> is closed
+ */
+function repairSVG(svg) {
+  const selfClosing = new Set(['circle', 'ellipse', 'line', 'path', 'polygon', 'polyline', 'rect', 'use', 'image', 'stop', 'animate']);
+  const voidTags = new Set([...selfClosing]);
+  const stack = [];
+  // Simple tag-balance repair: find unclosed tags
+  const openRe = /<([a-zA-Z][a-zA-Z0-9]*)[^>]*(?<!\/)>/g;
+  const closeRe = /<\/([a-zA-Z][a-zA-Z0-9]*)>/g;
+  const opens = []; const closes = [];
+  let m;
+  while ((m = openRe.exec(svg)) !== null) { if (!voidTags.has(m[1].toLowerCase())) opens.push(m[1].toLowerCase()); }
+  while ((m = closeRe.exec(svg)) !== null) closes.push(m[1].toLowerCase());
+  // Count unmatched opens
+  const countMap = {};
+  for (const t of opens) countMap[t] = (countMap[t] || 0) + 1;
+  for (const t of closes) countMap[t] = (countMap[t] || 0) - 1;
+  // Append missing closing tags (reverse order: deepest first, prioritize text/tspan/g)
+  const priority = ['text', 'tspan', 'g', 'svg'];
+  let suffix = '';
+  for (const tag of priority) {
+    const missing = countMap[tag] || 0;
+    for (let i = 0; i < missing; i++) suffix += `</${tag}>`;
+  }
+  if (suffix) {
+    // Insert before </svg> if present, else append
+    svg = svg.includes('</svg>') ? svg.replace(/(<\/svg>\s*)$/, suffix + '$1') : svg + suffix;
+    logger.info(`SVG repair: tags ajoutés: ${suffix}`);
+  }
+  return svg;
+}
+
 async function rasterizeSVG(svgString) {
   let sharp;
   try { sharp = require('sharp'); }
@@ -332,8 +367,19 @@ async function rasterizeSVG(svgString) {
     logger.info(`Rasterisation: SVG → PNG (${(pngBuffer.length / 1024).toFixed(0)}KB)`);
     return pngBuffer;
   } catch (e) {
-    logger.warn(`Rasterisation echouee: ${e.message}`);
-    return null;
+    // Tentative de réparation SVG avant d'abandonner
+    logger.warn(`Rasterisation echouee (${e.message.slice(0, 80)}), tentative de reparation SVG...`);
+    try {
+      const repairedSvg = repairSVG(svgString);
+      const pngBuffer = await sharp(Buffer.from(repairedSvg, 'utf-8'), { density: 192 })
+        .png({ quality: 95 })
+        .toBuffer();
+      logger.info(`Rasterisation: SVG reparé → PNG (${(pngBuffer.length / 1024).toFixed(0)}KB)`);
+      return pngBuffer;
+    } catch (e2) {
+      logger.warn(`Rasterisation echouee apres reparation: ${e2.message}`);
+      return null;
+    }
   }
 }
 
@@ -436,10 +482,15 @@ OUTPUT: Single image, same aspect ratio as source, high resolution.`;
           const parts = resp.candidates && resp.candidates[0] && resp.candidates[0].content && resp.candidates[0].content.parts;
           if (!parts) { reject(new Error('Gemini: pas de parts dans la reponse')); return; }
 
-          const imagePart = parts.find((p) => p.inline_data && p.inline_data.mime_type && p.inline_data.mime_type.startsWith('image/'));
+          // Gemini retourne inlineData (camelCase) dans la réponse, inline_data (snake_case) dans la requête
+          const imagePart = parts.find((p) => {
+            const d = p.inlineData || p.inline_data;
+            return d && (d.mimeType || d.mime_type || '').startsWith('image/');
+          });
           if (!imagePart) { reject(new Error('Gemini: pas d\'image dans la reponse')); return; }
 
-          const imgBuffer = Buffer.from(imagePart.inline_data.data, 'base64');
+          const inlineData = imagePart.inlineData || imagePart.inline_data;
+          const imgBuffer = Buffer.from(inlineData.data, 'base64');
           if (imgBuffer.length < 5000) { reject(new Error(`Gemini: image trop petite (${imgBuffer.length} bytes)`)); return; }
           if (imgBuffer.length > 20 * 1024 * 1024) { reject(new Error(`Gemini: image trop grande (${(imgBuffer.length / 1024 / 1024).toFixed(1)}MB)`)); return; }
 
