@@ -795,10 +795,18 @@ function callClaudeWithRetry(apiKey, system, user, maxTokens, retries) {
 
 function _callClaude(apiKey, system, user, maxTokens) {
   return new Promise((resolve, reject) => {
-    // Support user comme string (texte) ou array (multimodal/vision)
-    const messages = Array.isArray(user)
-      ? user
-      : [{ role: 'user', content: user }];
+    // Support user comme string, array de content parts (multimodal) ou array de messages
+    // - string → [{ role: 'user', content: string }]
+    // - array de parts ({ type: ... }) → [{ role: 'user', content: [...parts] }]
+    // - array de messages ({ role: ... }) → utilisé tel quel
+    let messages;
+    if (!Array.isArray(user)) {
+      messages = [{ role: 'user', content: user }];
+    } else if (user.length > 0 && user[0].role) {
+      messages = user; // déjà formaté comme messages
+    } else {
+      messages = [{ role: 'user', content: user }]; // array de content parts → wrap
+    }
 
     const bodyObj = {
       model: CLAUDE_MODEL,
