@@ -458,13 +458,19 @@ function buildTOC(article) {
   return article.sections.map((s, i) => ({ _type: 'block', _key: `toc_${i}`, style: 'normal', children: [{ _type: 'span', _key: `tocs_${i}`, text: `${i + 1}. ${s.heading}`, marks: [] }], markDefs: [] }));
 }
 
-function articleToPortableText(article, disclaimer, exhibitAssetIds) {
-  const blocks = []; let k = 0;
+/**
+ * Build Sanity body array: one wysiwygBlock per section + faqBlock.
+ * Exhibits (photoZone) are inserted inside the correct section content.
+ * Structure matches production schema:
+ *   wysiwygBlock → blockTitle: { _type: 'document', title, content: [...blocks, ...photoZones] }
+ *   faqBlock     → blockTitle: { title }, faqs: [{ _type: 'faqItem', question, answer }]
+ */
+function buildSanityBody(article, disclaimer, exhibitAssetIds) {
+  let k = 0;
   const tb = (t, s) => ({ _type: 'block', _key: `b_${k++}`, style: s || 'normal', children: [{ _type: 'span', _key: `s_${k++}`, text: t, marks: [] }], markDefs: [] });
   const exhibits = exhibitAssetIds && exhibitAssetIds.length > 0 ? [...exhibitAssetIds] : [];
 
-  // Compute insertion points: distribute exhibits evenly across sections
-  // 1 exhibit → after section at 1/2 of sections; 2 exhibits → after 1/3 and 2/3
+  // Compute exhibit insertion indices
   const totalSections = article.sections.length;
   const insertAfter = new Set();
   if (exhibits.length === 1) {
@@ -474,20 +480,24 @@ function articleToPortableText(article, disclaimer, exhibitAssetIds) {
     insertAfter.add(Math.max(1, Math.floor((totalSections * 2) / 3) - 1));
   }
 
-  // Sommaire
-  blocks.push(tb('Sommaire', 'h3'));
-  for (const tocItem of buildTOC(article)) blocks.push(tocItem);
-  blocks.push(tb('', 'normal')); // spacer
+  const body = [];
 
-  // Sections + exhibits intercalés
+  // One wysiwygBlock per section
   for (let i = 0; i < article.sections.length; i++) {
     const sec = article.sections[i];
-    blocks.push(tb(sec.heading, 'h2'));
-    for (const p of sec.content.split('\n\n').filter(Boolean)) blocks.push(tb(p));
+    const content = [];
+
+    // Section paragraphs
+    for (const p of sec.content.split('\n\n').filter(Boolean)) content.push(tb(p));
+
+    // Disclaimer in last section
+    if (i === article.sections.length - 1) content.push(tb(disclaimer, 'blockquote'));
+
+    // Exhibit (photoZone) after this section if applicable
     if (insertAfter.has(i) && exhibits.length > 0) {
       const ex = exhibits.shift();
       const altText = (ex.altText || '').slice(0, 160);
-      blocks.push({
+      content.push({
         _type: 'photoZone',
         _key: `exhibit_${k++}`,
         mainPhoto: {
@@ -498,13 +508,25 @@ function articleToPortableText(article, disclaimer, exhibitAssetIds) {
         },
       });
     }
+
+    body.push({
+      _type: 'wysiwygBlock',
+      _key: `w_sec_${k++}`,
+      blockTitle: { _type: 'document', title: sec.heading, content },
+    });
   }
 
-  // FAQ
-  if (article.faq && article.faq.length > 0) blocks.push({ _type: 'faqBlock', _key: `faq_${k++}`, title: 'Questions frequentes', items: article.faq.map((f, i) => ({ _type: 'faqItem', _key: `fi_${i}`, question: f.question, answer: f.answer })) });
-  // Disclaimer
-  blocks.push(tb(disclaimer, 'blockquote'));
-  return blocks;
+  // faqBlock at body level — matches production schema
+  if (article.faq && article.faq.length > 0) {
+    body.push({
+      _type: 'faqBlock',
+      _key: `faq_main_${k++}`,
+      blockTitle: { title: 'Questions fréquentes' },
+      faqs: article.faq.map((f, i) => ({ _key: `fi_${i}_${k++}`, _type: 'faqItem', question: f.question, answer: f.answer })),
+    });
+  }
+
+  return body;
 }
 
 function buildFAQSchema(article) {
@@ -606,7 +628,7 @@ async function publishToSanity(site, article, lang, persona, geoScore, disclaime
     author: { _type: 'reference', _ref: DEFAULT_AUTHOR_ID },
     category: [{ _key: `cat_${Date.now()}`, _type: 'reference', _ref: DEFAULT_CATEGORY_ID }],
     mainPhoto,
-    body: [{ _type: 'wysiwygBlock', _key: 'w_main', blockTitle: { _type: 'document', title: article.title, content: articleToPortableText(article, disclaimer, exhibitAssetIds) } }],
+    body: buildSanityBody(article, disclaimer, exhibitAssetIds),
     metaTitle: article.metaTitle || article.title, metaDescription: article.metaDescription || article.summary,
     persona, geoScore: geoScore.total, geoStatus: geoScore.status, disclaimer,
     publishedAt: new Date().toISOString(),
