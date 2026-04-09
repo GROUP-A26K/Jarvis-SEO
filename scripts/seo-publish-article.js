@@ -486,7 +486,17 @@ function articleToPortableText(article, disclaimer, exhibitAssetIds) {
     for (const p of sec.content.split('\n\n').filter(Boolean)) blocks.push(tb(p));
     if (insertAfter.has(i) && exhibits.length > 0) {
       const ex = exhibits.shift();
-      blocks.push({ _type: 'image', _key: `exhibit_${k++}`, asset: { _type: 'reference', _ref: ex.assetId }, alt: ex.altText || '' });
+      const altText = (ex.altText || '').slice(0, 160);
+      blocks.push({
+        _type: 'photoZone',
+        _key: `exhibit_${k++}`,
+        mainPhoto: {
+          _type: 'document',
+          imageTitle: altText,
+          photo: { _type: 'image', asset: { _type: 'reference', _ref: ex.assetId } },
+          photoAlt: altText,
+        },
+      });
     }
   }
 
@@ -528,7 +538,7 @@ function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); retu
 
 // ─── Sanity Image Asset Upload ──────────────────────────────
 
-async function uploadImageToSanity(imagePath) {
+async function uploadImageToSanity(imagePath, seoFilename) {
   let token;
   try { const s = loadSecret('sanity'); token = s.token || s.api_token; } catch (e) { throw new Error(`Sanity token requis. ${e.message}`); }
 
@@ -544,8 +554,10 @@ async function uploadImageToSanity(imagePath) {
   const mimeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' };
   const contentType = mimeMap[ext];
 
-  // Sanitize filename for URL
-  const safeFilename = path.basename(imagePath).replace(/[^a-zA-Z0-9._-]/g, '-');
+  // Use SEO-friendly filename if provided, otherwise sanitize local filename
+  const safeFilename = seoFilename
+    ? `${seoFilename.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase()}.${ext}`
+    : path.basename(imagePath).replace(/[^a-zA-Z0-9._-]/g, '-');
   const url = `https://${SANITY_PROJECT_ID}.api.sanity.io/v${SANITY_API_VERSION}/assets/images/${SANITY_DATASET}?filename=${safeFilename}`;
 
   return new Promise((resolve, reject) => {
@@ -747,10 +759,13 @@ async function main() {
     for (const ex of exhibitResults) {
       try {
         if (fs.existsSync(ex.pngPath)) {
-          const assetId = await uploadImageToSanity(ex.pngPath);
+          // SEO filename: keyword-slug-infographie-N (ex: assurance-maladie-suisse-infographie-1)
+          const keywordSlug = opts.keyword.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+          const seoFilename = `${keywordSlug}-infographie-${ex.filename.match(/-(\d+)[^/]*$/) ? ex.filename.match(/-(\d+)[^/]*$/)[1] : '1'}`;
+          const assetId = await uploadImageToSanity(ex.pngPath, seoFilename);
           if (assetId) {
             exhibitAssetIds.push({ assetId, altText: ex.altText });
-            console.log(`  + Exhibit upload: ${assetId}`);
+            console.log(`  + Exhibit upload: ${assetId} (${seoFilename})`);
           }
         }
       } catch (e) {
