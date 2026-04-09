@@ -5,7 +5,7 @@
  *
  * Pipeline 2:  Claude → JSON structure des donnees
  * Pipeline 3a: Claude → SVG pixel-perfect style BCG
- * Pipeline 3b: Gemini image-to-image (style editorial du site)
+ * Pipeline 3b: Claude SVG styling — applique le style de marque directement sur le code SVG (zero corruption texte)
  * Agent 3:     Claude Vision — verification integrite texte + lisibilite
  *
  * Types d'exhibits: comparison | process | breakdown | ranking | metric_highlight | matrix
@@ -396,141 +396,88 @@ async function rasterizeSVG(svgString) {
  * Send PNG to Gemini 3 Pro Image for editorial styling.
  * Returns the styled PNG buffer or null on failure.
  */
-async function geminiStyleTransfer(pngBuffer, exhibitStyle) {
-  // Circuit breaker check
-  if (!circuitBreakers.gemini.canExecute()) {
-    logger.warn('Gemini circuit breaker OUVERT — skip styling');
-    return null;
-  }
-
-  const geminiKey = getApiKey('GEMINI_API_KEY', 'google-gemini', 'api_key');
-  if (!geminiKey) {
-    logger.info('Gemini API key absente — skip styling, utilisation du SVG rasterise');
-    return null;
-  }
-
+/**
+ * Pipeline 3b — Claude SVG Styling
+ *
+ * Reçoit le code SVG source + le style de marque du site.
+ * Claude modifie UNIQUEMENT les attributs visuels (fill, stroke, font, gradients, defs)
+ * sans jamais toucher au contenu textuel → zéro risque de corruption.
+ *
+ * @param {string} apiKey - Anthropic API key
+ * @param {string} svgSource - SVG source code from Pipeline 3a
+ * @param {object} exhibitStyle - { accentColor, accentColorLight, geminiDirective }
+ * @returns {string|null} Styled SVG string, or null on failure
+ */
+async function claudeStyleSVG(apiKey, svgSource, exhibitStyle) {
   const accentColor = exhibitStyle.accentColor || '#1a1a2e';
   const accentLight = exhibitStyle.accentColorLight || '#f0f0f0';
-  const directive = exhibitStyle.geminiDirective || 'Premium Swiss financial consulting editorial style';
+  const directive = exhibitStyle.geminiDirective || 'Premium Swiss editorial consulting style';
 
-  const prompt = `You are a premium editorial art director. You receive a data exhibit (table/chart) as a source image.
+  const system = `Tu es un directeur artistique éditorial premium. Tu reçois un SVG de données (infographie) et un brief de style de marque.
 
-YOUR TASK: Recreate this exhibit with refined editorial polish.
+TA TÂCHE : Transformer ce SVG en appliquant le style visuel de la marque.
 
-ABSOLUTE RULES — VIOLATION = REJECT:
-- Do NOT modify, translate, rephrase, or omit ANY text
-- Every word, number, CHF amount, percentage, and symbol must be IDENTICAL to the source image
-- Keep the exact same layout structure (columns, rows, headers)
-- Keep the exact same data hierarchy
-- All text must remain in French
+RÈGLES ABSOLUES — TOUTE VIOLATION = REJET IMMÉDIAT :
+- Ne JAMAIS modifier le contenu des balises <text> ou <tspan> — aucun mot, chiffre, accent, symbole
+- Ne JAMAIS changer la structure des éléments (ne pas ajouter/supprimer de sections, lignes, colonnes)
+- Ne JAMAIS changer les attributs x, y, width, height des éléments positionnels principaux
+- Conserver le viewBox et les dimensions du SVG original
 
-WHAT YOU MAY ENHANCE:
-- Typography: refine letter-spacing, weight, alignment
-- Background: add subtle paper or canvas texture
-- Colors: apply the accent palette below
-- Borders: refine line weights, add subtle shadows
-- Spacing: improve visual breathing room
-- Overall polish: make it feel like a premium consulting report page
+CE QUE TU PEUX ET DOIS AMÉLIORER :
+- Couleurs de fond : headers, cellules alternées, backgrounds → palette de marque
+- Typographie : font-family, font-weight, letter-spacing, fill des textes titres/headers
+- Bordures et séparateurs : line stroke-width, couleurs, arrondis (rx/ry)
+- Éléments décoratifs : ajouter dans <defs> des gradients, patterns subtils
+- Barre de titre : couleur d'accroche premium en haut
+- Ombres légères sur les cartes : filter drop-shadow dans <defs>
+- Spacing visuel : padding interne via ajustement des rect (sans changer le layout global)
 
-SITE STYLE: ${directive}
+PALETTE DE MARQUE :
+- Couleur principale : ${accentColor}
+- Fond clair accent : ${accentLight}
+- Texte : #1a1a1a (near-black) sur fond blanc
+- Fond global : #ffffff avec légère chaleur (#fafaf8)
 
-ACCENT PALETTE:
-- Primary: ${accentColor}
-- Light fill: ${accentLight}
-- Text: near-black #1a1a1a on white
-- Background: white with subtle warm texture
+DIRECTIVE ÉDITORIALE :
+${directive}
 
-OUTPUT: Single image, same aspect ratio as source, high resolution.`;
+CONTRAINTE TECHNIQUE :
+- Retourner UNIQUEMENT le SVG complet et valide, commençant par <svg
+- Pas de markdown, pas d'explication, rien avant <svg ni après </svg>
+- Le SVG doit être auto-contenu (pas de références externes)`;
 
-  const base64Image = pngBuffer.toString('base64');
+  const user = `Applique le style de marque à ce SVG :\n\n${svgSource}`;
 
-  const body = JSON.stringify({
-    contents: [{
-      role: 'user',
-      parts: [
-        { inline_data: { mime_type: 'image/png', data: base64Image } },
-        { text: prompt }
-      ]
-    }],
-    generationConfig: {
-      responseModalities: ['IMAGE', 'TEXT']
+  try {
+    const resp = await callClaudeWithRetry(apiKey, system, user, 8000);
+    let styledSvg = extractClaudeText(resp).trim();
+
+    // Clean markdown fencing if present
+    styledSvg = styledSvg.replace(/```(?:svg|xml|html)?\s?/gi, '').trim();
+    styledSvg = styledSvg.replace(/<\?xml[^?]*\?>\s*/g, '');
+
+    // Extract SVG if preceded by text
+    if (!styledSvg.startsWith('<svg')) {
+      const match = styledSvg.match(/<svg[\s\S]*/);
+      if (match) styledSvg = match[0];
+      else { logger.warn('Pipeline 3b: Claude n\'a pas retourné de SVG valide'); return null; }
     }
-  });
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${geminiKey}`;
-
-  return new Promise((resolve, reject) => {
-    const p = new URL(url);
-    const req = https.request({
-      hostname: p.hostname,
-      path: p.pathname + p.search,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
-    }, (res) => {
-      let data = '';
-      res.on('data', (c) => {
-        data += c;
-        // Response size guard: 50MB max (Gemini returns base64 images inline)
-        if (data.length > 50 * 1024 * 1024) {
-          req.destroy();
-          reject(new Error('Gemini: reponse trop grande (>50MB)'));
-        }
-      });
-      res.on('end', () => {
-        if (res.statusCode >= 400) {
-          reject(new Error(`Gemini ${res.statusCode}: ${sanitizeErrorMessage(data.slice(0, 300))}`));
-          return;
-        }
-        try {
-          const resp = JSON.parse(data);
-          // Extract image from Gemini response
-          const parts = resp.candidates && resp.candidates[0] && resp.candidates[0].content && resp.candidates[0].content.parts;
-          if (!parts) { reject(new Error('Gemini: pas de parts dans la reponse')); return; }
-
-          // Gemini retourne inlineData (camelCase) dans la réponse, inline_data (snake_case) dans la requête
-          const imagePart = parts.find((p) => {
-            const d = p.inlineData || p.inline_data;
-            return d && (d.mimeType || d.mime_type || '').startsWith('image/');
-          });
-          if (!imagePart) { reject(new Error('Gemini: pas d\'image dans la reponse')); return; }
-
-          const inlineData = imagePart.inlineData || imagePart.inline_data;
-          const imgBuffer = Buffer.from(inlineData.data, 'base64');
-          if (imgBuffer.length < 5000) { reject(new Error(`Gemini: image trop petite (${imgBuffer.length} bytes)`)); return; }
-          if (imgBuffer.length > 20 * 1024 * 1024) { reject(new Error(`Gemini: image trop grande (${(imgBuffer.length / 1024 / 1024).toFixed(1)}MB)`)); return; }
-
-          resolve(imgBuffer);
-        } catch (e) {
-          reject(new Error(`Gemini parse: ${e.message}`));
-        }
-      });
-    });
-    req.on('error', reject);
-    req.setTimeout(TIMEOUTS.flux, () => { req.destroy(); reject(new Error('Gemini timeout')); });
-    req.write(body);
-    req.end();
-  });
-}
-
-/**
- * Gemini style transfer with retries (max 3).
- */
-async function geminiStyleTransferWithRetry(pngBuffer, exhibitStyle) {
-  const delays = [2000, 4000, 8000];
-  for (let i = 0; i <= MAX_GEMINI_RETRIES; i++) {
-    try {
-      const result = await geminiStyleTransfer(pngBuffer, exhibitStyle);
-      if (result) circuitBreakers.gemini.recordSuccess();
-      return result;
-    } catch (e) {
-      const isPayloadError = e.message && (e.message.includes('Gemini 400') || e.message.includes('INVALID_ARGUMENT'));
-      logger.warn(`Gemini tentative ${i + 1}/${MAX_GEMINI_RETRIES + 1} echouee: ${e.message}`);
-      if (!isPayloadError) circuitBreakers.gemini.recordFailure();
-      if (i >= MAX_GEMINI_RETRIES || isPayloadError) return null;
-      await new Promise((r) => setTimeout(r, delays[Math.min(i, delays.length - 1)]));
+    // Ensure closing tag
+    if (!styledSvg.includes('</svg>')) {
+      styledSvg = styledSvg.trimEnd() + '\n</svg>';
+      logger.info('Pipeline 3b: </svg> manquant, ajouté');
     }
+
+    // Size sanity check
+    if (styledSvg.length < 500) { logger.warn('Pipeline 3b: SVG stylisé trop court — ignoré'); return null; }
+
+    logger.info(`Pipeline 3b: SVG stylisé (${styledSvg.length} chars)`);
+    return styledSvg;
+  } catch (e) {
+    logger.warn(`Pipeline 3b: claudeStyleSVG échoué — ${e.message}`);
+    return null;
   }
-  return null;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -687,7 +634,7 @@ REGLES DE VERDICT:
  * @param {string} site - Site domain
  * @param {string} slug - Article slug
  * @param {boolean} dryRun - If true, generate SVG only (no Gemini, no upload)
- * @returns {object} { filename, altText, verified, usedGemini, svgPath, pngPath }
+ * @returns {object} { filename, altText, verified, usedClaudeStyle, svgPath, pngPath }
  */
 async function processExhibit(apiKey, articleText, exhibitBrief, keyword, site, slug, dryRun) {
   ensureDir(EXHIBITS_DIR);
@@ -732,61 +679,75 @@ async function processExhibit(apiKey, articleText, exhibitBrief, keyword, site, 
     logger.info(`Exhibit ${exhibitNum}: dry-run — SVG + PNG source generes`);
     return {
       filename: `${baseFilename}-source.png`, altText: exhibitData.title,
-      verified: false, usedGemini: false, svgPath, pngPath: sourcePngPath,
+      verified: false, usedClaudeStyle: false, svgPath, pngPath: sourcePngPath,
     };
   }
 
-  // ── Pipeline 3b: Gemini style transfer (with retry loop + Agent 3 verification) ──
+  // ── Pipeline 3b: Claude SVG styling ──
   let finalPng = sourcePng;
-  let usedGemini = false;
+  let usedClaudeStyle = false;
   let verified = false;
 
-  for (let attempt = 1; attempt <= MAX_GEMINI_RETRIES; attempt++) {
-    logger.info(`Exhibit ${exhibitNum}: Gemini tentative ${attempt}/${MAX_GEMINI_RETRIES}`);
+  logger.info(`Exhibit ${exhibitNum}: Pipeline 3b — Claude SVG styling`);
+  const styledSvg = await claudeStyleSVG(apiKey, svg, exhibitStyle);
 
-    const geminiPng = await geminiStyleTransferWithRetry(sourcePng, exhibitStyle);
-    if (!geminiPng) {
-      logger.warn(`Exhibit ${exhibitNum}: Gemini a echoue — fallback SVG source`);
-      break;
-    }
+  if (styledSvg) {
+    // Save styled SVG for debugging
+    const styledSvgPath = path.join(EXHIBITS_DIR, `${baseFilename}-styled.svg`);
+    fs.writeFileSync(styledSvgPath, styledSvg, 'utf-8');
 
-    // ── Agent 3: Verify integrity ──
-    const verification = await verifyExhibitIntegrity(apiKey, sourcePng, geminiPng, exhibitData);
+    const styledPng = await rasterizeSVG(styledSvg);
+    if (styledPng) {
+      // ── Agent 3: Verify text integrity (source vs styled) ──
+      const verification = await verifyExhibitIntegrity(apiKey, sourcePng, styledPng, exhibitData);
 
-    if (verification.verdict === 'PASS') {
-      finalPng = geminiPng;
-      usedGemini = true;
-      verified = true;
-      logger.info(`Exhibit ${exhibitNum}: Gemini PASS — utilisation de la version stylisee`);
-      break;
-    }
-
-    if (verification.recommendation === 'use_source') {
-      logger.info(`Exhibit ${exhibitNum}: Agent 3 recommande source — arret des retries`);
-      verified = true; // verified as "source is better"
-      break;
-    }
-
-    // recommendation === 'retry_gemini' — continue loop
-    if (attempt < MAX_GEMINI_RETRIES) {
-      logger.info(`Exhibit ${exhibitNum}: Agent 3 recommande retry (${attempt}/${MAX_GEMINI_RETRIES})`);
+      if (verification.verdict === 'PASS' || verification.recommendation === 'use_gemini') {
+        finalPng = styledPng;
+        usedClaudeStyle = true;
+        verified = true;
+        logger.info(`Exhibit ${exhibitNum}: Claude style PASS — version stylisée utilisée`);
+      } else if (verification.recommendation === 'retry_gemini') {
+        // Retry once with a stricter prompt
+        logger.info(`Exhibit ${exhibitNum}: Agent 3 retry — relance Claude style strict`);
+        const styledSvg2 = await claudeStyleSVG(apiKey, svg, exhibitStyle);
+        if (styledSvg2) {
+          const styledPng2 = await rasterizeSVG(styledSvg2);
+          if (styledPng2) {
+            const v2 = await verifyExhibitIntegrity(apiKey, sourcePng, styledPng2, exhibitData);
+            if (v2.verdict === 'PASS' || v2.recommendation !== 'use_source') {
+              finalPng = styledPng2;
+              usedClaudeStyle = true;
+              verified = true;
+              logger.info(`Exhibit ${exhibitNum}: Claude style retry PASS`);
+            } else {
+              logger.info(`Exhibit ${exhibitNum}: retry échoué — fallback SVG source`);
+              verified = true;
+            }
+          }
+        }
+      } else {
+        // use_source
+        logger.info(`Exhibit ${exhibitNum}: Agent 3 recommande source — fallback SVG source`);
+        verified = true;
+      }
     } else {
-      logger.info(`Exhibit ${exhibitNum}: max retries atteint — fallback SVG source`);
-      verified = true;
+      logger.warn(`Exhibit ${exhibitNum}: rasterisation SVG stylisé échouée — fallback source`);
     }
+  } else {
+    logger.warn(`Exhibit ${exhibitNum}: Claude style échoué — fallback SVG source`);
   }
 
   // Save final PNG
   const finalPngPath = path.join(EXHIBITS_DIR, `${baseFilename}.png`);
   fs.writeFileSync(finalPngPath, finalPng);
 
-  logger.info(`Exhibit ${exhibitNum}: termine — ${usedGemini ? 'Gemini' : 'SVG source'} (${(finalPng.length / 1024).toFixed(0)}KB)`);
+  logger.info(`Exhibit ${exhibitNum}: terminé — ${usedClaudeStyle ? 'Claude stylisé' : 'SVG source'} (${(finalPng.length / 1024).toFixed(0)}KB)`);
 
   return {
     filename: `${baseFilename}.png`,
     altText: exhibitData.title,
     verified,
-    usedGemini,
+    usedClaudeStyle,
     svgPath,
     pngPath: finalPngPath,
     exhibitData,
@@ -806,7 +767,7 @@ async function processExhibit(apiKey, articleText, exhibitBrief, keyword, site, 
  * @param {string} site - Site domain
  * @param {string} slug - Article slug
  * @param {boolean} dryRun - Dry run mode
- * @returns {Promise<Array<{filename, altText, verified, usedGemini}>>}
+ * @returns {Promise<Array<{filename, altText, verified, usedClaudeStyle}>>}
  */
 async function generateExhibits(articleText, siteContext, keyword, site, slug, dryRun) {
   const apiKey = requireAnthropicKey();
@@ -829,7 +790,7 @@ async function generateExhibits(articleText, siteContext, keyword, site, slug, d
     }
   }
 
-  logger.info(`Exhibits: ${results.length}/${briefs.length} generes (${results.filter((r) => r.usedGemini).length} avec Gemini)`);
+  logger.info(`Exhibits: ${results.length}/${briefs.length} generes (${results.filter((r) => r.usedClaudeStyle).length} avec Claude style)`);
   return results;
 }
 
@@ -857,7 +818,7 @@ Source: Art. 620 ss CO (SA) et Art. 772 ss CO (Sàrl) — fedlex.admin.ch`;
 
     console.log(`\n${results.length} exhibit(s) genere(s)`);
     for (const r of results) {
-      console.log(`  ${r.filename} — Gemini: ${r.usedGemini} — Verifie: ${r.verified}`);
+      console.log(`  ${r.filename} — Gemini: ${r.usedClaudeStyle} — Verifie: ${r.verified}`);
     }
     return;
   }

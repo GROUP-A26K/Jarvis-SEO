@@ -889,7 +889,7 @@ ${htmlSections}${faqHtml}
   <li><strong>GEO :</strong> ${geoScore.total}/100 (${geoScore.status})</li>
   <li><strong>Coverage :</strong> ${topicalCoverage.score}/10</li>
   <li><strong>Image hero :</strong> ${heroImagePath ? '✅ générée' : '❌ non disponible'}</li>
-  <li><strong>Infographies :</strong> ${preProdExhibits.length} générée(s) (${preProdExhibits.filter((e) => e.usedGemini).length} avec Gemini)</li>
+  <li><strong>Infographies :</strong> ${preProdExhibits.length} générée(s) (${preProdExhibits.filter((e) => e.usedClaudeStyle).length} avec Claude style)</li>
 </ul>
 <p>L'article complet avec images est en pièce jointe (PDF).</p>
 <hr><p style="font-size:12px;color:#666;">Jarvis One · Chief Assistant · A26K Group · jarvis@groupe-genevoise.ch</p>`,
@@ -969,7 +969,7 @@ ${htmlSections}${faqHtml}
       if (exhibitResults.length > 0) {
         console.log(`  + ${exhibitResults.length} exhibit(s) genere(s)`);
         for (const ex of exhibitResults) {
-          console.log(`    ${ex.filename} (${ex.usedGemini ? 'Gemini' : 'SVG'}, verifie: ${ex.verified})`);
+          console.log(`    ${ex.filename} (${ex.usedClaudeStyle ? 'Claude stylisé' : 'SVG source'}, verifie: ${ex.verified})`);
         }
       } else {
         console.log('  ~ Aucun exhibit pertinent pour cet article');
