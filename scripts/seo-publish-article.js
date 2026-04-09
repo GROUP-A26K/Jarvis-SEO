@@ -592,8 +592,11 @@ async function publishToSanity(site, article, lang, persona, geoScore, disclaime
 
   // Use uploaded image or fallback to default
   const imageRef = imageAssetId || DEFAULT_IMAGE_ID;
-  const mainImage = { _type: 'image', asset: { _type: 'reference', _ref: imageRef } };
-  if (imageAlt) mainImage.alt = imageAlt;
+  const mainPhoto = {
+    _type: 'document',
+    photo: { _type: 'image', asset: { _type: 'reference', _ref: imageRef } },
+    photoAlt: (imageAlt || article.title).slice(0, 160),
+  };
 
   const doc = {
     _type: getSanityDocType(site), _id: docId,
@@ -601,9 +604,9 @@ async function publishToSanity(site, article, lang, persona, geoScore, disclaime
     summary: article.summary, language: lang,
     publishedDate: new Date().toISOString().split('T')[0],
     author: { _type: 'reference', _ref: DEFAULT_AUTHOR_ID },
-    category: { _type: 'reference', _ref: DEFAULT_CATEGORY_ID },
-    mainImage,
-    body: [{ _type: 'wysiwygBlock', _key: 'w_main', blockTitle: article.title, content: articleToPortableText(article, disclaimer, exhibitAssetIds) }],
+    category: [{ _key: `cat_${Date.now()}`, _type: 'reference', _ref: DEFAULT_CATEGORY_ID }],
+    mainPhoto,
+    body: [{ _type: 'wysiwygBlock', _key: 'w_main', blockTitle: { _type: 'document', title: article.title, content: articleToPortableText(article, disclaimer, exhibitAssetIds) } }],
     metaTitle: article.metaTitle || article.title, metaDescription: article.metaDescription || article.summary,
     persona, geoScore: geoScore.total, geoStatus: geoScore.status, disclaimer,
     publishedAt: new Date().toISOString(),
