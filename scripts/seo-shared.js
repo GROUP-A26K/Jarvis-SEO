@@ -614,7 +614,42 @@ function sanitizeErrorMessage(msg) {
 let lastRequestTime = 0;
 let requestQueue = Promise.resolve();
 
+// ═══════════════════════════════════════════════════════════════
+// SEMRUSH SESSION GUARD — Agent de sécurité anti-boucle
+// Limite de 2000 unités par exécution (process), quoiqu'il arrive.
+// Indépendant du compteur mensuel persistant.
+// ═══════════════════════════════════════════════════════════════
+const SEMRUSH_SESSION_LIMIT = 2000;
+const _semrushSession = { consumed: 0, tripped: false };
+
+function semrushSessionGuard(estimatedUnits) {
+  if (_semrushSession.tripped) {
+    throw new Error(`[SEMRUSH GUARD] Disjoncteur de session actif — limite ${SEMRUSH_SESSION_LIMIT} unités atteinte (${_semrushSession.consumed} consommées). Arrêt de sécurité.`);
+  }
+  const est = estimatedUnits || 10;
+  if (_semrushSession.consumed + est > SEMRUSH_SESSION_LIMIT) {
+    _semrushSession.tripped = true;
+    throw new Error(`[SEMRUSH GUARD] Limite de session ${SEMRUSH_SESSION_LIMIT} unités dépassée (${_semrushSession.consumed} + ${est} estimées). Arrêt de sécurité.`);
+  }
+}
+
+function semrushSessionRecord(units) {
+  _semrushSession.consumed += (units || 10);
+  const pct = Math.round(_semrushSession.consumed / SEMRUSH_SESSION_LIMIT * 100);
+  if (pct >= 80 && !_semrushSession._warned80) {
+    _semrushSession._warned80 = true;
+    logger.warn(`[SEMRUSH GUARD] Session: ${_semrushSession.consumed}/${SEMRUSH_SESSION_LIMIT} unités (${pct}%) — ${SEMRUSH_SESSION_LIMIT - _semrushSession.consumed} restantes`);
+  }
+  if (_semrushSession.consumed >= SEMRUSH_SESSION_LIMIT) {
+    _semrushSession.tripped = true;
+    logger.warn(`[SEMRUSH GUARD] Limite de session atteinte — plus aucun appel Semrush autorisé pour ce process`);
+  }
+}
+
 function rateLimitedSemrushGet(url) {
+  // Security guard — limite session 2000 unités
+  try { semrushSessionGuard(10); } catch (e) { return Promise.reject(e); }
+
   // Circuit breaker check
   if (!circuitBreakers.semrush.canExecute()) {
     return Promise.reject(new Error('Semrush circuit breaker OUVERT — service temporairement indisponible'));
@@ -739,6 +774,10 @@ function tavilySearch(query, opts) {
 }
 
 function rateLimitedSemrushRequest(params) {
+  // Pre-check: estimate max units (display_limit rows × 10 + base 10)
+  const estimatedUnits = ((params.display_limit || 10) + 1) * 10;
+  try { semrushSessionGuard(estimatedUnits); } catch (e) { return Promise.reject(e); }
+
   const query = new URLSearchParams(params).toString();
   return rateLimitedSemrushGet(`https://api.semrush.com/?${query}`).then(parseSemrushCSV);
 }
@@ -803,6 +842,8 @@ function trackUnits(type, rowCount) {
     const units = Math.max(10, rowCount * 10);
     state.consumed += units;
     state.history.push({ date: new Date().toISOString(), type, rows: rowCount, units });
+    // Session guard — compteur en mémoire (protection anti-boucle)
+    semrushSessionRecord(units);
     if (state.history.length > 200) state.history = state.history.slice(-200);
 
     const remaining = state.planTotal - state.consumed;
@@ -1112,6 +1153,7 @@ module.exports = {
   httpRequest, esc,
   sanitize, sanitizeFilename, sanitizeSlug, sanitizeArticleForLLM, sanitizeErrorMessage,
   rateLimitedSemrushGet, rateLimitedSemrushRequest, parseSemrushCSV, tavilySearch,
+  semrushSessionGuard, semrushSessionRecord, SEMRUSH_SESSION_LIMIT,
   validateSemrushData, trackUnits, printUnitsSummary, loadUnitsState,
   callClaudeWithRetry, extractClaudeText,
   verifyUrl,
