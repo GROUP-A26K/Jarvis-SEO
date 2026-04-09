@@ -273,22 +273,27 @@ POUR TYPE "matrix":
   const user = `Donnees de l'exhibit:\n${JSON.stringify(exhibitData, null, 2)}`;
 
   try {
-    const resp = await callClaudeWithRetry(apiKey, system, user, 4000);
+    const resp = await callClaudeWithRetry(apiKey, system, user, 6000);
     let svg = extractClaudeText(resp).trim();
 
-    // Clean: remove markdown fencing if present
-    svg = svg.replace(/```svg\s?|```xml\s?|```/g, '').trim();
+    // Clean: remove all markdown fencing variants
+    svg = svg.replace(/```(?:svg|xml|html)?\s?/gi, '').trim();
 
-    // Validate SVG
-    if (!svg.startsWith('<svg') && !svg.startsWith('<?xml')) {
-      // Try to extract SVG from response
-      const match = svg.match(/<svg[\s\S]*<\/svg>/);
+    // Remove XML declaration if present
+    svg = svg.replace(/<\?xml[^?]*\?>\s*/g, '');
+
+    // Extract SVG if preceded by text or wrapped in explanations
+    if (!svg.startsWith('<svg')) {
+      const match = svg.match(/<svg[\s\S]*/);
       if (match) svg = match[0];
       else throw new Error('Response ne contient pas de SVG valide');
     }
 
-    // Remove XML declaration if present
-    svg = svg.replace(/<\?xml[^?]*\?>\s*/g, '');
+    // Ensure closing </svg> — repair if truncated
+    if (!svg.includes('</svg>')) {
+      svg = svg.trimEnd() + '\n</svg>';
+      logger.info('Pipeline 3a: </svg> manquant, ajouté');
+    }
 
     // Sanitize SVG — remove any script/event handlers that could cause XSS
     svg = svg.replace(/<script[\s\S]*?<\/script>/gi, '');
