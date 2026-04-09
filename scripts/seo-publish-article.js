@@ -13,7 +13,7 @@ const {
   loadSecret, getSiteConfig, getSiteList,
   getSanityDefaults, getSanityDocType, getPersonaDetails, getSitePersonas,
   getSiteSources, getSiteEntity, getSiteFinma, getSiteStableSources,
-  rateLimitedSemrushGet, rateLimitedSemrushRequest, trackUnits, printUnitsSummary,
+  rateLimitedSemrushGet, rateLimitedSemrushRequest, tavilySearch, trackUnits, printUnitsSummary,
   callClaudeWithRetry, extractClaudeText, verifyUrl,
   httpRequest, readJSONSafe, writeJSONAtomic, withLockedJSON,
   TIMEOUTS, VALID_PERSONAS, sanitizeErrorMessage,
@@ -230,47 +230,84 @@ Retourne le JSON COMPLET corrige avec la meme structure:
 // ─── Etape 2 : Redaction FR (avec validation + repair) ───────
 
 /**
- * Fetch real verified source URLs via Semrush organic results + HTTP HEAD check.
- * Returns up to 5 verified URLs for authoritative sources on the keyword.
+ * Fetch real verified source URLs for the keyword.
+ *
+ * Strategy (priorité décroissante) :
+ * 1. Tavily Search — 2 requêtes ciblées (sites officiels + contexte Suisse)
+ * 2. Semrush phrase_organic — fallback si Tavily ne trouve rien
+ * 3. Vérification HTTP (verifyUrl) — garde uniquement les URLs réellement accessibles
+ *
+ * @returns {Promise<string[]>} Up to 5 verified source URLs
  */
 async function fetchVerifiedSources(keyword, semrushApiKey) {
   const candidates = [];
+  const seen = new Set();
+  const add = (url) => {
+    if (url && url.startsWith('https://') && !seen.has(url)) {
+      seen.add(url);
+      candidates.push(url);
+    }
+  };
 
-  // Semrush phrase_organic: URLs currently ranking for the keyword
-  for (const db of ['ch', 'fr']) {
-    try {
-      const rows = await rateLimitedSemrushRequest({
-        type: 'phrase_organic',
-        key: semrushApiKey,
-        phrase: keyword,
-        database: db,
-        display_limit: 15,
-        export_columns: 'Ur,Dn,Po',
-      });
-      for (const row of rows) {
-        const url = row.Ur || row.Url;
-        if (url && url.startsWith('https://')) candidates.push(url);
-      }
-    } catch (e) { logger.warn(`fetchVerifiedSources Semrush (${db}): ${e.message}`); }
-    if (candidates.length >= 15) break;
+  // ── 1. Tavily Search (prioritaire) ──
+  // Requête 1 : sources officielles suisses
+  const tavilyResults1 = await tavilySearch(
+    `${keyword} site officiel Suisse autorité`,
+    { maxResults: 8, includeDomains: ['admin.ch', 'fmh.ch', 'finma.ch', 'fedlex.admin.ch', 'ofas.admin.ch', 'bag.admin.ch', 'seco.admin.ch', 'estv.admin.ch', 'ge.ch', 'vd.ch', 'sem.admin.ch'] }
+  );
+  tavilyResults1.forEach((r) => add(r.url));
+
+  // Requête 2 : recherche générale Suisse si résultats insuffisants
+  if (candidates.length < 3) {
+    const tavilyResults2 = await tavilySearch(
+      `${keyword} Suisse loi réglementation`,
+      { maxResults: 8 }
+    );
+    tavilyResults2.forEach((r) => add(r.url));
+  }
+
+  if (candidates.length > 0) {
+    logger.info(`fetchVerifiedSources: ${candidates.length} candidats Tavily trouvés`);
+  }
+
+  // ── 2. Fallback Semrush si Tavily ne trouve rien ──
+  if (candidates.length === 0) {
+    for (const db of ['ch', 'fr']) {
+      try {
+        const rows = await rateLimitedSemrushRequest({
+          type: 'phrase_organic',
+          key: semrushApiKey,
+          phrase: keyword,
+          database: db,
+          display_limit: 15,
+          export_columns: 'Ur,Dn,Po',
+        });
+        rows.forEach((r) => add(r.Ur || r.Url));
+      } catch (e) { logger.warn(`fetchVerifiedSources Semrush (${db}): ${e.message}`); }
+      if (candidates.length >= 10) break;
+    }
+    if (candidates.length > 0) logger.info(`fetchVerifiedSources: ${candidates.length} candidats Semrush (fallback)`);
   }
 
   if (candidates.length === 0) {
-    logger.info('fetchVerifiedSources: aucun résultat Semrush, pas de sources injectées');
+    logger.info('fetchVerifiedSources: aucune source trouvée (Tavily + Semrush) — Claude utilisera ses propres sources');
     return [];
   }
 
-  // Verify URLs via HTTP HEAD — keep only reachable ones (max 5)
+  // ── 3. Vérification HTTP ──
   const verified = [];
   for (const url of candidates) {
     if (verified.length >= 5) break;
     try {
-      const ok = await verifyUrl(url, 5000);
-      if (ok) { verified.push(url); logger.info(`  source vérifiée: ${url}`); }
+      const result = await verifyUrl(url, 6000);
+      if (result && result.ok) {
+        verified.push(url);
+        logger.info(`  + source vérifiée: ${url}`);
+      }
     } catch (e) { /* skip */ }
   }
 
-  logger.info(`fetchVerifiedSources: ${verified.length}/${candidates.length} URLs vérifiées`);
+  logger.info(`fetchVerifiedSources: ${verified.length} source(s) vérifiée(s) injectée(s)`);
   return verified;
 }
 
