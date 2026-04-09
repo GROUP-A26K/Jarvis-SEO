@@ -676,10 +676,14 @@ async function publishToSanity(site, article, lang, persona, geoScore, disclaime
 
   // Use uploaded image or fallback to default
   const imageRef = imageAssetId || DEFAULT_IMAGE_ID;
+  // imageTitle = keyword-enriched for SEO crawlers (Sanity media library + structured data)
+  // photoAlt  = descriptive for accessibility (screen readers, Google image search)
+  const heroAlt = (imageAlt || article.title).slice(0, 125);
   const mainPhoto = {
     _type: 'document',
+    imageTitle: `${keyword} — ${heroAlt}`.slice(0, 160),
     photo: { _type: 'image', asset: { _type: 'reference', _ref: imageRef } },
-    photoAlt: (imageAlt || article.title).slice(0, 160),
+    photoAlt: heroAlt,
   };
 
   const doc = {
