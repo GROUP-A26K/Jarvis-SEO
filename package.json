@@ -16,9 +16,11 @@
     "exhibits:test": "node scripts/seo-exhibits.js --test",
     "exhibits:dry": "node scripts/seo-exhibits.js --test --dry-run",
     "images": "node scripts/seo-images.js --all",
-    "images:dry": "node scripts/seo-images.js --all --dry-run"
+    "images:dry": "node scripts/seo-images.js --all --dry-run",
+    "workflow": "node scripts/workflow-daily.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
     "better-sqlite3": "^11.0.0",
     "sharp": "^0.33.0"
   },

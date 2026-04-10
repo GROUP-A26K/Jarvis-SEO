@@ -15,12 +15,15 @@ scripts/
   seo-weekly-report.js       # Script 3 : rapport hebdomadaire
   seo-orchestrator.js        # Script 4 : orchestrateur workflow
   seo-images.js              # Script 5 : pipeline images AI
+  calendar-connector.js      # Adaptateur Supabase (Jarvis Calendar)
+  workflow-daily.js           # Cron quotidien Calendar → SEO pipeline
 sites/
   config.json                # Configuration centralisee (single source of truth)
 tests/
   test-all.js                # 65 tests unitaires
 secrets/                     # .gitignore — JAMAIS commite
   semrush.json               # { "api_key": "...", "plan": "standard" }
+  supabase.json              # { "url": "...", "service_role_key": "..." }
   google-oauth.json           # OAuth2 credentials
   sanity.json                # { "token": "..." }
   resend.json                # { "api_key": "...", "from": "noreply@..." }
@@ -73,6 +76,7 @@ npm run status                    # Etat du pipeline
 npm run images                    # Pipeline images (tous les plans)
 npm run images:dry                # Images dry-run (LLM seul)
 npm run report                    # Rapport hebdomadaire
+npm run workflow                  # Cron quotidien Calendar (publications + taches)
 ```
 
 ## Configuration : `sites/config.json`
@@ -165,4 +169,7 @@ npm run exhibits:dry            # Dry-run (SVG seulement, pas de Gemini)
 
 # Rapport : lundi 8h
 0 8 * * 1 cd /path/to/project && node scripts/seo-weekly-report.js >> logs/weekly.log 2>&1
+
+# Calendar daily workflow : tous les jours 7h
+0 7 * * * cd /path/to/project && node scripts/workflow-daily.js >> logs/workflow-daily.log 2>&1
 ```
