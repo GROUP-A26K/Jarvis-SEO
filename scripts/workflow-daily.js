@@ -17,6 +17,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const {
   logger, requireAnthropicKey, sendEmail, esc, TIMEOUTS,
+  validateArticleInput, sanitize,
 } = require('./seo-shared');
 const {
   fetchTodayPublications, fetchPendingTasks,
@@ -47,13 +48,25 @@ async function main() {
   const results = { published: 0, tasks: 0, failed: 0 };
 
   // ── 1. Today's scheduled publications ──
-  const pubs = await fetchTodayPublications();
+  let pubs = [];
+  try {
+    pubs = await fetchTodayPublications();
+  } catch (e) {
+    logger.error(`Supabase fetch publications failed: ${e.message}`);
+  }
   console.log(`> ${pubs.length} publication(s) programmee(s) aujourd'hui\n`);
 
   for (const pub of pubs) {
-    const keyword = pub.theme || pub.title || 'article';
+    const keyword = sanitize(pub.theme || pub.title || 'article');
     const site = pub.domain;
     if (!site) { logger.warn(`Publication ${pub.id}: pas de domain, skip`); results.failed++; continue; }
+
+    const inputErrors = validateArticleInput({ site, keyword });
+    if (inputErrors.length > 0) {
+      logger.warn(`Publication ${pub.id}: input invalide: ${inputErrors.join(', ')}`);
+      results.failed++;
+      continue;
+    }
 
     console.log(`  -> [${site}] "${keyword}"`);
     try {
@@ -72,7 +85,12 @@ async function main() {
   }
 
   // ── 2. Pending tasks (bouton "Generer avec Jarvis") ──
-  const tasks = await fetchPendingTasks();
+  let tasks = [];
+  try {
+    tasks = await fetchPendingTasks();
+  } catch (e) {
+    logger.error(`Supabase fetch tasks failed: ${e.message}`);
+  }
   console.log(`\n> ${tasks.length} tache(s) pending\n`);
 
   for (const task of tasks) {
@@ -80,8 +98,11 @@ async function main() {
     try {
       const p = task.payload || {};
       const site = p.site;
-      const keyword = p.theme || p.title || 'article';
+      const keyword = sanitize(p.theme || p.title || 'article');
       if (!site) throw new Error('Payload sans site');
+
+      const inputErrors = validateArticleInput({ site, keyword });
+      if (inputErrors.length > 0) throw new Error(`Input invalide: ${inputErrors.join(', ')}`);
 
       const flags = dryRun ? ['--dry-run'] : ['--force'];
       const output = runArticle(site, keyword, flags, apiKey);
