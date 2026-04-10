@@ -73,19 +73,34 @@ async function fetchTodayPublications() {
 }
 
 /**
- * Fetch pending tasks from jarvis_tasks.
+ * Fetch and claim pending tasks from jarvis_tasks.
+ * Atomically transitions pending→processing to prevent concurrent duplicates.
  * @returns {Promise<Array<{id, action, publication_id, payload}>>}
  */
 async function fetchPendingTasks() {
   return withBreaker('fetchPendingTasks', async () => {
-    const { data, error } = await getClient()
+    // 1. Read pending tasks
+    const { data: pending, error: readErr } = await getClient()
       .from('jarvis_tasks')
       .select('id, action, publication_id, payload')
       .eq('status', 'pending')
       .order('created_at', { ascending: true });
 
-    if (error) throw new Error(`fetchPendingTasks: ${error.message}`);
-    return data || [];
+    if (readErr) throw new Error(`fetchPendingTasks: ${readErr.message}`);
+    if (!pending || pending.length === 0) return [];
+
+    // 2. Claim them by setting status='processing' (only rows still pending)
+    const ids = pending.map((t) => t.id);
+    const { data: claimed, error: claimErr } = await getClient()
+      .from('jarvis_tasks')
+      .update({ status: 'processing' })
+      .in('id', ids)
+      .eq('status', 'pending')
+      .select('id, action, publication_id, payload');
+
+    if (claimErr) throw new Error(`claimTasks: ${claimErr.message}`);
+    logger.info(`Claimed ${(claimed || []).length}/${pending.length} pending tasks`);
+    return claimed || [];
   });
 }
 
