@@ -31,6 +31,12 @@ Thumbs.db
 *.bak
 *.bak.*
 
+# Supabase local
+.supabase/
+
 # Env
 .env
 .env.*
+
+# Logs
+*.log
