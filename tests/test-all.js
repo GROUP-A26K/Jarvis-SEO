@@ -202,9 +202,9 @@ test('withLockedJSON mutates and saves', () => {
 });
 
 suite('getSiteList');
-test('returns 5 sites', () => {
+test('returns 7 sites', () => {
   const sites = shared.getSiteList();
-  assertEqual(sites.length, 5);
+  assertEqual(sites.length, 7);
 });
 test('does not include _meta', () => {
   const sites = shared.getSiteList();
@@ -229,7 +229,7 @@ test('returns labels for all sites', () => {
   const labels = shared.getSiteLabels();
   assertEqual(labels['medcourtage.ch'], 'MedCourtage');
   assertEqual(labels['fiduciaire-genevoise.ch'], 'Fiduciaire GE');
-  assertEqual(Object.keys(labels).length, 5);
+  assertEqual(Object.keys(labels).length, 7);
 });
 
 suite('getSanityDefaults');

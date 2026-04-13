@@ -13,6 +13,7 @@ jobs:
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       BFL_API_KEY: ${{ secrets.BFL_API_KEY }}
+      NOTIFY_EMAILS: ${{ secrets.NOTIFY_EMAILS }}
 
     steps:
       - uses: actions/checkout@v4
@@ -22,39 +23,20 @@ jobs:
           node-version: 18
           cache: npm
 
-      - run: npm install
+      - run: npm ci
 
-      # Créer secrets/supabase.json depuis les GitHub Secrets
-      - name: Write Supabase secrets
+      # Créer secrets/ depuis les GitHub Secrets (runner éphémère, nettoyé en fin de job)
+      - name: Write secrets files
         run: |
           mkdir -p secrets
-          cat > secrets/supabase.json << 'EOJSON'
-          {
-            "url": "${{ secrets.SUPABASE_URL }}",
-            "service_role_key": "${{ secrets.SUPABASE_SERVICE_KEY }}"
-          }
-          EOJSON
-
-      # Créer secrets/sanity.json depuis les GitHub Secrets
-      - name: Write Sanity secrets
-        run: |
-          mkdir -p secrets
-          cat > secrets/sanity.json << 'EOJSON'
-          {
-            "token": "${{ secrets.SANITY_TOKEN }}"
-          }
-          EOJSON
-
-      # Créer secrets/resend.json pour les notifications email
-      - name: Write Resend secrets
-        run: |
-          mkdir -p secrets
-          cat > secrets/resend.json << 'EOJSON'
-          {
-            "api_key": "${{ secrets.RESEND_API_KEY }}",
-            "from": "${{ secrets.RESEND_FROM }}"
-          }
-          EOJSON
+          echo '{"url":"${{ secrets.SUPABASE_URL }}","service_role_key":"${{ secrets.SUPABASE_SERVICE_KEY }}"}' > secrets/supabase.json
+          echo '{"token":"${{ secrets.SANITY_TOKEN }}"}' > secrets/sanity.json
+          echo '{"api_key":"${{ secrets.RESEND_API_KEY }}","from":"${{ secrets.RESEND_FROM }}"}' > secrets/resend.json
 
       - name: Run daily workflow
         run: node scripts/workflow-daily.js --verbose
+
+      # Nettoyage explicite des secrets (même si le runner est éphémère)
+      - name: Cleanup secrets
+        if: always()
+        run: rm -rf secrets/
