@@ -17,8 +17,8 @@ scripts/
   seo-orchestrator.js        # Orchestrateur workflow (plan/execute/deploy/status)
   seo-images.js              # Pipeline images AI (Flux 2)
   seo-exhibits.js            # Infographies style BCG (SVG → PNG → Gemini)
-  calendar-connector.js      # Adaptateur Supabase (Jarvis Calendar)
-  workflow-daily.js           # Cron quotidien Calendar → SEO pipeline
+  calendar-connector.js      # Adaptateur Supabase (Jarvis Calendar, filtre scheduled_at)
+  workflow-daily.js           # Cron quotidien Calendar → SEO pipeline + notifications email
 sites/
   config.json                # Configuration centralisee (single source of truth)
 tests/
@@ -29,6 +29,8 @@ secrets/                     # .gitignore — JAMAIS commite
   google-oauth.json          # OAuth2 credentials
   sanity.json                # Token Editor Sanity
   resend.json                # API key Resend (emails)
+.github/workflows/
+  jarvis-daily.yml           # Cron quotidien 5h30 UTC (= 7h30 UTC+2)
 ```
 
 ## Stack technique
@@ -75,6 +77,29 @@ npm run workflow                  # Cron quotidien Calendar → SEO
 npm run exhibits:test             # Exhibit de test (SVG + PNG)
 npm run exhibits:dry              # Exhibit dry-run (SVG seul)
 ```
+
+## Workflow quotidien (workflow-daily.js)
+1. Lit les publications du jour (status='scheduled', publish_date=today)
+2. Lit les jarvis_tasks pending dont `scheduled_at <= NOW()` (ou NULL pour legacy)
+3. Pour chaque publication/task, exécute `seo-publish-article.js`
+4. Marque la publication comme 'published' + envoie une notification email
+5. Envoie un recap quotidien par email
+
+**Notifications post-publication** : email envoyé après chaque article publié.
+- Destinataires : `NOTIFY_EMAILS` env var (defaut: jeanbaptiste@a26k.ch, sebastien@a26k.ch, benjamin@a26k.ch)
+- Contenu : titre, URL, site, date, thème
+- Via Resend (secrets/resend.json)
+
+## Deploiement GitHub Actions
+- **Workflow** : `.github/workflows/jarvis-daily.yml`
+- **Cron** : tous les jours a 5h30 UTC (= 7h30 UTC+2)
+- **Dispatch manuel** : possible via Actions > Run workflow
+- **Secrets GitHub** (Settings > Secrets > Actions) :
+  - `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`
+  - `SANITY_TOKEN`
+  - `ANTHROPIC_API_KEY`
+  - `BFL_API_KEY` (optionnel, images)
+  - `RESEND_API_KEY`, `RESEND_FROM` (notifications email)
 
 ## Conventions
 - Node.js ESM, pas de Python

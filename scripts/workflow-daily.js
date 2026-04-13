@@ -27,6 +27,43 @@ const {
 const SCRIPTS_DIR = __dirname;
 const dryRun = process.argv.includes('--dry-run');
 
+// Destinataires des notifications post-publication
+const NOTIFY_EMAILS = (process.env.NOTIFY_EMAILS || 'jeanbaptiste@a26k.ch,sebastien@a26k.ch,benjamin@a26k.ch').split(',').map(e => e.trim());
+
+/**
+ * Envoie un email de notification après publication réussie.
+ * @param {string} site - Domaine du site
+ * @param {string} title - Titre de l'article
+ * @param {string} theme - Thème de l'article
+ * @param {string} url - URL publiée
+ */
+async function sendPublicationNotification(site, title, theme, url) {
+  const date = new Date().toLocaleDateString('fr-CH', { day: 'numeric', month: 'long', year: 'numeric' });
+  const siteName = site.replace(/\.ch$/, '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const subject = `[${siteName}] Nouvel article publie — ${esc(title || theme)}`;
+  const html = `<div style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
+    <h2 style="color:#1a1a2e;margin-bottom:4px">${esc(siteName)}</h2>
+    <p style="color:#3B82F6;margin-top:0;font-size:13px">Nouvel article publie</p>
+    <hr style="border:none;border-top:1px solid #eee;margin:16px 0">
+    <table style="font-size:14px;color:#333;line-height:1.6">
+      <tr><td style="padding:4px 12px 4px 0;color:#888">Titre</td><td><strong>${esc(title || '(sans titre)')}</strong></td></tr>
+      <tr><td style="padding:4px 12px 4px 0;color:#888">Theme</td><td>${esc(theme || '-')}</td></tr>
+      <tr><td style="padding:4px 12px 4px 0;color:#888">Site</td><td>${esc(site)}</td></tr>
+      <tr><td style="padding:4px 12px 4px 0;color:#888">Date</td><td>${date}</td></tr>
+      ${url ? `<tr><td style="padding:4px 12px 4px 0;color:#888">URL</td><td><a href="${esc(url)}" style="color:#3B82F6">${esc(url)}</a></td></tr>` : ''}
+    </table>
+    <hr style="border:none;border-top:1px solid #eee;margin:16px 0">
+    <p style="color:#999;font-size:12px">Jarvis One | A26K Group</p>
+  </div>`;
+
+  try {
+    await sendEmail(subject, html);
+    logger.info(`Notification envoyee pour [${site}] "${title || theme}"`);
+  } catch (e) {
+    logger.warn(`Notification email failed: ${e.message}`);
+  }
+}
+
 function runArticle(site, keyword, extraFlags, apiKey) {
   const scriptPath = path.join(SCRIPTS_DIR, 'seo-publish-article.js');
   const args = [scriptPath, '--site', site, '--keyword', keyword];
@@ -75,6 +112,7 @@ async function main() {
       if (!dryRun) {
         const urlMatch = output.toString().match(/https?:\/\/[^\s]+/);
         await markPublished(pub.id, urlMatch ? urlMatch[0] : null);
+        await sendPublicationNotification(site, pub.title, pub.theme, urlMatch ? urlMatch[0] : null);
       }
       results.published++;
       console.log(`     + OK`);
@@ -113,6 +151,7 @@ async function main() {
         if (task.publication_id && urlMatch) {
           await markPublished(task.publication_id, urlMatch[0]);
         }
+        await sendPublicationNotification(site, p.title || keyword, p.theme || keyword, urlMatch ? urlMatch[0] : null);
       }
       results.tasks++;
       console.log(`     + OK`);

@@ -1,0 +1,60 @@
+name: Jarvis SEO Daily Workflow
+
+on:
+  schedule:
+    # Tous les jours à 5h30 UTC (= 7h30 UTC+2)
+    - cron: '30 5 * * *'
+  workflow_dispatch:
+
+jobs:
+  daily-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      BFL_API_KEY: ${{ secrets.BFL_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+
+      - run: npm install
+
+      # Créer secrets/supabase.json depuis les GitHub Secrets
+      - name: Write Supabase secrets
+        run: |
+          mkdir -p secrets
+          cat > secrets/supabase.json << 'EOJSON'
+          {
+            "url": "${{ secrets.SUPABASE_URL }}",
+            "service_role_key": "${{ secrets.SUPABASE_SERVICE_KEY }}"
+          }
+          EOJSON
+
+      # Créer secrets/sanity.json depuis les GitHub Secrets
+      - name: Write Sanity secrets
+        run: |
+          mkdir -p secrets
+          cat > secrets/sanity.json << 'EOJSON'
+          {
+            "token": "${{ secrets.SANITY_TOKEN }}"
+          }
+          EOJSON
+
+      # Créer secrets/resend.json pour les notifications email
+      - name: Write Resend secrets
+        run: |
+          mkdir -p secrets
+          cat > secrets/resend.json << 'EOJSON'
+          {
+            "api_key": "${{ secrets.RESEND_API_KEY }}",
+            "from": "${{ secrets.RESEND_FROM }}"
+          }
+          EOJSON
+
+      - name: Run daily workflow
+        run: node scripts/workflow-daily.js --verbose

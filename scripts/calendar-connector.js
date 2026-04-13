@@ -75,15 +75,20 @@ async function fetchTodayPublications() {
 /**
  * Fetch and claim pending tasks from jarvis_tasks.
  * Atomically transitions pending→processing to prevent concurrent duplicates.
+ * Only fetches tasks whose scheduled_at is in the past (or NULL for legacy tasks).
  * @returns {Promise<Array<{id, action, publication_id, payload}>>}
  */
 async function fetchPendingTasks() {
   return withBreaker('fetchPendingTasks', async () => {
-    // 1. Read pending tasks
+    const now = new Date().toISOString();
+
+    // 1. Read pending tasks whose scheduled_at is past or null
     const { data: pending, error: readErr } = await getClient()
       .from('jarvis_tasks')
-      .select('id, action, publication_id, payload')
+      .select('id, action, publication_id, payload, scheduled_at, priority')
       .eq('status', 'pending')
+      .or(`scheduled_at.is.null,scheduled_at.lte.${now}`)
+      .order('priority', { ascending: false })
       .order('created_at', { ascending: true });
 
     if (readErr) throw new Error(`fetchPendingTasks: ${readErr.message}`);
