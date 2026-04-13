@@ -57,7 +57,8 @@ const CLAUDE_MODEL = 'claude-sonnet-4-6';
 const DEFAULT_MAX_TOKENS = 8000;
 const CLAUDE_TIMEOUT_MS = 180000;
 
-const EMAIL_RECIPIENTS = ['jeanbaptiste@a26k.ch', 'benjamin@a26k.ch'];
+// Email recipients from env var (no hardcoded fallback)
+const EMAIL_RECIPIENTS = (process.env.EMAIL_RECIPIENTS || '').split(',').map(e => e.trim()).filter(Boolean);
 const MAX_ARTICLES_PER_WEEK = 5;
 
 const DEFAULT_PLAN_UNITS = 50000;

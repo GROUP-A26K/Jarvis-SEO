@@ -29,8 +29,8 @@ const {
 const SCRIPTS_DIR = __dirname;
 const dryRun = process.argv.includes('--dry-run');
 
-// Destinataires des notifications post-publication
-const NOTIFY_EMAILS = (process.env.NOTIFY_EMAILS || 'jeanbaptiste@a26k.ch,sebastien@a26k.ch,benjamin@a26k.ch').split(',').map(e => e.trim());
+// Destinataires des notifications post-publication (env var requise, pas de fallback hardcode)
+const NOTIFY_EMAILS = (process.env.NOTIFY_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean);
 
 /**
  * Envoie un email de notification après publication réussie.
