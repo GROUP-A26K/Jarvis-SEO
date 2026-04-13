@@ -83,9 +83,9 @@ npm run workflow                  # Cron quotidien Calendar (publications + tach
 
 Single source of truth. Ajouter un site = ajouter une entree, zero changement dans les scripts.
 
-**Sites actuellement configures :** fiduciaire-genevoise.ch, fiduciairevaudoise.ch, assurance-genevoise.ch, relocation-genevoise.ch, medcourtage.ch (5/9).
+**Sites actuellement configures :** fiduciaire-genevoise.ch, fiduciairevaudoise.ch, assurance-genevoise.ch, relocation-genevoise.ch, medcourtage.ch, automotoplus.ch, immobiliere-genevoise.ch (7/9).
 
-**Sites en cours de configuration (pas encore dans config.json) :** automotoplus.ch, golamalch.ch, prepafa.ch, immobiliere-genevoise.ch — seront ajoutes quand leur contenu SEO sera pret.
+**Sites en cours de configuration (pas encore dans config.json) :** golamalch.ch, prepafa.ch — seront ajoutes quand leur contenu SEO sera pret.
 
 ```json
 {

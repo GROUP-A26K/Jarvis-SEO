@@ -119,7 +119,7 @@
       "fiduciaire.ch"
     ],
     "sanity": {
-      "documentType": "fiduciaireGenevoiseBlogPost"
+      "documentType": "fiduciaireBlogPost"
     },
     "imageStyle": {
       "secteurRef": "FINANCE / BANQUE / ASSURANCE + JURIDIQUE / NOTARIAL",
@@ -227,7 +227,7 @@
       "expatya.ch"
     ],
     "sanity": {
-      "documentType": "relocationGenevoiseBlogPost"
+      "documentType": "relocationBlogPost"
     },
     "imageStyle": {
       "secteurRef": "IMMOBILIER / ARCHITECTURE",
@@ -305,6 +305,111 @@
       "accentColor": "#2c5f7c",
       "accentColorLight": "#e6f0f5",
       "geminiDirective": "Swiss insurance brokerage comparison document. Navy blue (#2c5f7c) headers with gold (#c9a84c) highlight on white. Subtle vellum paper texture. Typography: direct, comparative, data-forward. Aesthetic: an independent broker client advisory sheet. Clear, impartial, decision-oriented."
+    }
+  },
+  "automotoplus.ch": {
+    "label": "Automotoplus",
+    "entity": "Automotoplus SA",
+    "verticale": "Automobile",
+    "finma": null,
+    "siteContext": {
+      "secteur": "Automobile / actualites auto",
+      "ton": "Dynamique, pratique, comparatif. Essais, tendances, conseils.",
+      "public": "Automobilistes suisses, passionnes auto, acheteurs",
+      "palette": [
+        "#1a1a2e",
+        "#FB923C",
+        "#f5f5f0",
+        "#4a4a4a"
+      ],
+      "exemples_articles": "Essai vehicule, comparatif SUV, entretien auto, marche occasion Suisse"
+    },
+    "sources": "tcs.ch, bpa.ch, astra.admin.ch, auto-suisse.ch",
+    "personas": [
+      "Expert Automobile"
+    ],
+    "fallbackCompetitors": [
+      "autoscout24.ch",
+      "tcs.ch",
+      "automobile-magazine.fr"
+    ],
+    "sanity": {
+      "documentType": "blogPost"
+    },
+    "imageStyle": {
+      "secteurRef": "AUTOMOBILE / TRANSPORT",
+      "appareils": [
+        "Sony A7IV",
+        "Canon R5"
+      ],
+      "focales": "24-70mm, f/2.8",
+      "palette_dominante": "gris metallique, orange, noir, blanc",
+      "sujets_types": "vehicules, routes suisses, garages, tableaux de bord",
+      "imperfections_types": "reflets carrosserie, gouttes pluie, traces usage"
+    },
+    "sources_stables": [
+      "https://www.tcs.ch/fr/",
+      "https://www.bpa.ch/fr.html",
+      "https://www.astra.admin.ch/astra/fr/home.html",
+      "https://www.fedlex.admin.ch/fr/home"
+    ],
+    "exhibitStyle": {
+      "accentColor": "#FB923C",
+      "accentColorLight": "#fef3e6",
+      "geminiDirective": "Swiss automotive news and review document. Orange (#FB923C) accents on clean white, subtle brushed metal texture. Typography: bold, dynamic, data-driven. Aesthetic: premium car magazine editorial spread. Energetic, factual, enthusiast-oriented."
+    }
+  },
+  "immobiliere-genevoise.ch": {
+    "label": "Immobiliere Genevoise",
+    "entity": "Immobiliere Genevoise SA",
+    "verticale": "Immobilier",
+    "finma": null,
+    "siteContext": {
+      "secteur": "Immobilier / vente / location / gestion",
+      "ton": "Professionnel, expert, ancrage genevois. Marche local, expertise terrain.",
+      "public": "Proprietaires, acheteurs, locataires, investisseurs immobiliers a Geneve",
+      "palette": [
+        "#1a1a2e",
+        "#F472B6",
+        "#f5f5f0",
+        "#4a4a4a"
+      ],
+      "exemples_articles": "Prix immobilier Geneve, acheter appartement Geneve, gestion locative, estimation bien"
+    },
+    "sources": "ge.ch/logement, fedlex.admin.ch, bfs.admin.ch, asloca.ch, uspi.ch",
+    "personas": [
+      "Expert Immobilier"
+    ],
+    "fallbackCompetitors": [
+      "homegate.ch",
+      "immoscout24.ch",
+      "naef.ch"
+    ],
+    "sanity": {
+      "documentType": "immobiliereBlogPost"
+    },
+    "imageStyle": {
+      "secteurRef": "IMMOBILIER / ARCHITECTURE",
+      "appareils": [
+        "Sony A7IV",
+        "Canon R5"
+      ],
+      "focales": "16-35mm, f/2.8-f/4",
+      "palette_dominante": "blanc, rose poudre, gris clair, bois naturel",
+      "sujets_types": "appartements, immeubles genevois, interieurs, vues lac",
+      "imperfections_types": "reflets vitres, lumiere naturelle, traces de vie"
+    },
+    "sources_stables": [
+      "https://www.ge.ch/logement",
+      "https://www.bfs.admin.ch/bfs/fr/home/statistiques/construction-logement.html",
+      "https://www.asloca.ch/",
+      "https://www.fedlex.admin.ch/fr/home",
+      "https://www.uspi.ch/"
+    ],
+    "exhibitStyle": {
+      "accentColor": "#F472B6",
+      "accentColorLight": "#fdf0f5",
+      "geminiDirective": "Geneva real estate advisory document. Soft rose (#F472B6) accents on pristine white, subtle linen texture. Typography: elegant, spacious, property-listing precision. Aesthetic: premium Geneva estate agency brochure. Refined, trustworthy, locally anchored."
     }
   }
 }
