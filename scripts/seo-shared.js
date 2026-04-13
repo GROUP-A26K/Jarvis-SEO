@@ -604,7 +604,9 @@ function sanitizeErrorMessage(msg) {
     .replace(/key=[a-zA-Z0-9_-]{10,}/gi, 'key=[REDACTED]')
     .replace(/Bearer [a-zA-Z0-9_.-]{10,}/gi, 'Bearer [REDACTED]')
     .replace(/x-api-key:\s*[a-zA-Z0-9_-]{10,}/gi, 'x-api-key: [REDACTED]')
-    .replace(/token=[a-zA-Z0-9_.-]{10,}/gi, 'token=[REDACTED]');
+    .replace(/token=[a-zA-Z0-9_.-]{10,}/gi, 'token=[REDACTED]')
+    .replace(/sb_secret_[a-zA-Z0-9_-]{10,}/gi, '[REDACTED_SERVICE_KEY]')
+    .replace(/sb_publishable_[a-zA-Z0-9_-]{10,}/gi, '[REDACTED_ANON_KEY]');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -670,6 +672,11 @@ function _throttledGet(url) {
   });
 }
 
+/** Redact the key= query parameter from Semrush URLs before logging */
+function sanitizeSemrushUrl(url) {
+  return url.replace(/([?&])key=[^&]+/gi, '$1key=[REDACTED]');
+}
+
 function _semrushGetWithBackoff(url, attempt, resolve, reject) {
   const cfg = RETRY.semrush;
 
@@ -699,8 +706,8 @@ function _semrushGetWithBackoff(url, attempt, resolve, reject) {
       circuitBreakers.semrush.recordSuccess();
       resolve(data);
     });
-    res.on('error', (e) => { circuitBreakers.semrush.recordFailure(); reject(e); });
-  }).on('error', (e) => { circuitBreakers.semrush.recordFailure(); reject(e); });
+    res.on('error', (e) => { circuitBreakers.semrush.recordFailure(); reject(new Error(`Semrush stream: ${sanitizeErrorMessage(e.message)}`)); });
+  }).on('error', (e) => { circuitBreakers.semrush.recordFailure(); reject(new Error(`Semrush request: ${sanitizeErrorMessage(e.message)}`)); });
   req.setTimeout(TIMEOUTS.semrush, () => {
     req.destroy();
     circuitBreakers.semrush.recordFailure();

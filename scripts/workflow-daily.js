@@ -96,7 +96,7 @@ async function main() {
   console.log(`> ${pubs.length} publication(s) programmee(s) aujourd'hui\n`);
 
   for (const pub of pubs) {
-    const keyword = sanitize(pub.theme || pub.title || 'article');
+    const keyword = sanitize(pub.theme || pub.title || 'article').replace(/[\n\r]+/g, ' ');
     const site = pub.domain;
     if (!site) { logger.warn(`Publication ${pub.id}: pas de domain, skip`); results.failed++; continue; }
 
@@ -169,7 +169,7 @@ async function main() {
     try {
       const p = task.payload || {};
       const site = p.site;
-      const keyword = sanitize(p.theme || p.title || 'article');
+      const keyword = sanitize(p.theme || p.title || 'article').replace(/[\n\r]+/g, ' ');
       if (!site) throw new Error('Payload sans site');
 
       const inputErrors = validateArticleInput({ site, keyword });
