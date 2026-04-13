@@ -6,6 +6,9 @@ on:
     - cron: '30 5 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   daily-publish:
     runs-on: ubuntu-latest
@@ -16,9 +19,9 @@ jobs:
       NOTIFY_EMAILS: ${{ secrets.NOTIFY_EMAILS }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 18
           cache: npm
@@ -35,6 +38,19 @@ jobs:
 
       - name: Run daily workflow
         run: node scripts/workflow-daily.js --verbose
+
+      # Alerting on failure
+      - name: Notify on failure
+        if: failure()
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM: ${{ secrets.RESEND_FROM }}
+        run: |
+          echo "::error::Jarvis SEO daily workflow failed — check logs"
+          curl -s -X POST https://api.resend.com/emails \
+            -H "Authorization: Bearer $RESEND_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"from\":\"$RESEND_FROM\",\"to\":\"$NOTIFY_EMAILS\",\"subject\":\"[Jarvis SEO] Daily workflow FAILED\",\"text\":\"Le workflow quotidien a echoue. Verifier GitHub Actions: https://github.com/GROUP-A26K/Jarvis-SEO/actions\"}" || true
 
       # Nettoyage explicite des secrets (même si le runner est éphémère)
       - name: Cleanup secrets

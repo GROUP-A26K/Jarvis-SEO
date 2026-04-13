@@ -174,7 +174,13 @@ async function failTask(taskId, errorMsg) {
  * @param {string} storagePath - path in the publication-files bucket
  * @returns {Promise<string>} - local temp file path
  */
+const HERO_PATH_RE = /^heroes\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/hero\.webp$/;
+
 async function downloadHeroImage(storagePath) {
+  if (!HERO_PATH_RE.test(storagePath)) {
+    throw new Error(`downloadHeroImage: chemin invalide: ${storagePath}`);
+  }
+
   return withBreaker('downloadHeroImage', async () => {
     const { data, error } = await getClient()
       .storage
@@ -184,8 +190,7 @@ async function downloadHeroImage(storagePath) {
     if (error) throw new Error(`downloadHeroImage: ${error.message}`);
     if (!data) throw new Error('downloadHeroImage: pas de donnees');
 
-    const ext = storagePath.split('.').pop() || 'jpg';
-    const tmpPath = path.join(os.tmpdir(), `hero-${Date.now()}.${ext}`);
+    const tmpPath = path.join(os.tmpdir(), `hero-${Date.now()}.webp`);
     const buffer = Buffer.from(await data.arrayBuffer());
     fs.writeFileSync(tmpPath, buffer);
     logger.info(`Hero image downloaded: ${tmpPath} (${buffer.length} bytes)`);
