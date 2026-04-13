@@ -453,6 +453,23 @@ test('informational < 0.5', () => {
   assert(v < 0.5);
 });
 
+// ── Hero Image Tests ──
+suite('Hero Image — calendar-connector exports');
+try {
+  const cc = require('../scripts/calendar-connector');
+  test('calendar-connector exports downloadHeroImage', () => {
+    assert(typeof cc.downloadHeroImage === 'function');
+  });
+  test('calendar-connector exports updatePublicationMetadata', () => {
+    assert(typeof cc.updatePublicationMetadata === 'function');
+  });
+} catch (_) {
+  test('calendar-connector requires @supabase/supabase-js (skipped)', () => {
+    // Skip if dependency not installed in test env
+    assert(true);
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════
 // Results
 // ═══════════════════════════════════════════════════════════════

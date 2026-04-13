@@ -19,9 +19,11 @@ const {
   logger, requireAnthropicKey, sendEmail, esc, TIMEOUTS,
   validateArticleInput, sanitize,
 } = require('./seo-shared');
+const fs = require('fs');
 const {
   fetchTodayPublications, fetchPendingTasks,
   markPublished, ackTask, failTask,
+  downloadHeroImage, updatePublicationMetadata,
 } = require('./calendar-connector');
 
 const SCRIPTS_DIR = __dirname;
@@ -108,12 +110,43 @@ async function main() {
     console.log(`  -> [${site}] "${keyword}"`);
     try {
       const flags = dryRun ? ['--dry-run'] : ['--force'];
+
+      // Hero image custom : download from Storage if present
+      let heroTmpPath = null;
+      if (pub.hero_image_path) {
+        try {
+          heroTmpPath = await downloadHeroImage(pub.hero_image_path);
+          flags.push('--image-path', heroTmpPath);
+          console.log(`     (hero image: ${pub.hero_image_path})`);
+        } catch (imgErr) {
+          logger.warn(`Hero image download failed for ${pub.id}: ${imgErr.message} — will use default`);
+        }
+      }
+
       const output = runArticle(site, keyword, flags, apiKey);
       if (!dryRun) {
         const urlMatch = output.toString().match(/https?:\/\/[^\s]+/);
         await markPublished(pub.id, urlMatch ? urlMatch[0] : null);
+
+        // Tracability: extract sanity asset id from stdout if hero custom was used
+        if (heroTmpPath) {
+          const assetMatch = output.toString().match(/Image asset: (image-[a-zA-Z0-9-]+)/);
+          if (assetMatch) {
+            await updatePublicationMetadata(pub.id, {
+              hero_sanity_asset_id: assetMatch[1],
+              hero_uploaded_at: new Date().toISOString(),
+            });
+          }
+        }
+
         await sendPublicationNotification(site, pub.title, pub.theme, urlMatch ? urlMatch[0] : null);
       }
+
+      // Cleanup temp file
+      if (heroTmpPath) {
+        try { fs.unlinkSync(heroTmpPath); } catch (_) {}
+      }
+
       results.published++;
       console.log(`     + OK`);
     } catch (e) {
@@ -143,6 +176,27 @@ async function main() {
       if (inputErrors.length > 0) throw new Error(`Input invalide: ${inputErrors.join(', ')}`);
 
       const flags = dryRun ? ['--dry-run'] : ['--force'];
+
+      // Hero image: read hero_image_path from the associated publication
+      let heroTmpPath = null;
+      if (task.publication_id) {
+        const { data: pubData } = await require('./calendar-connector').getClient()
+          .from('publications')
+          .select('hero_image_path')
+          .eq('id', task.publication_id)
+          .single();
+
+        if (pubData?.hero_image_path) {
+          try {
+            heroTmpPath = await downloadHeroImage(pubData.hero_image_path);
+            flags.push('--image-path', heroTmpPath);
+            console.log(`     (hero image: ${pubData.hero_image_path})`);
+          } catch (imgErr) {
+            logger.warn(`Hero image download failed for task ${task.id}: ${imgErr.message} — will use default`);
+          }
+        }
+      }
+
       const output = runArticle(site, keyword, flags, apiKey);
       const urlMatch = output.toString().match(/https?:\/\/[^\s]+/);
 
@@ -151,8 +205,26 @@ async function main() {
         if (task.publication_id && urlMatch) {
           await markPublished(task.publication_id, urlMatch[0]);
         }
+
+        // Tracability: hero image
+        if (heroTmpPath && task.publication_id) {
+          const assetMatch = output.toString().match(/Image asset: (image-[a-zA-Z0-9-]+)/);
+          if (assetMatch) {
+            await updatePublicationMetadata(task.publication_id, {
+              hero_sanity_asset_id: assetMatch[1],
+              hero_uploaded_at: new Date().toISOString(),
+            });
+          }
+        }
+
         await sendPublicationNotification(site, p.title || keyword, p.theme || keyword, urlMatch ? urlMatch[0] : null);
       }
+
+      // Cleanup
+      if (heroTmpPath) {
+        try { fs.unlinkSync(heroTmpPath); } catch (_) {}
+      }
+
       results.tasks++;
       console.log(`     + OK`);
     } catch (e) {

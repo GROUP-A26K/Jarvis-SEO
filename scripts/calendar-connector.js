@@ -7,6 +7,9 @@
  *
  * Jarvis One — A26K Group
  */
+const path = require('path');
+const fs = require('fs');
+const os = require('os');
 const { createClient } = require('@supabase/supabase-js');
 const { loadSecret, logger, createCircuitBreaker } = require('./seo-shared');
 
@@ -53,7 +56,7 @@ async function fetchTodayPublications() {
     const today = new Date().toISOString().slice(0, 10);
     const { data, error } = await getClient()
       .from('publications')
-      .select('id, website_id, title, theme, brief, metadata, websites(domain, sanity_document_type)')
+      .select('id, website_id, title, theme, brief, metadata, hero_image_path, websites(domain, sanity_document_type)')
       .eq('publish_date', today)
       .eq('status', 'scheduled');
 
@@ -66,6 +69,7 @@ async function fetchTodayPublications() {
       theme: p.theme,
       brief: p.brief,
       metadata: p.metadata,
+      hero_image_path: p.hero_image_path || null,
       domain: p.websites?.domain || null,
       sanity_document_type: p.websites?.sanity_document_type || null,
     }));
@@ -162,6 +166,60 @@ async function failTask(taskId, errorMsg) {
   });
 }
 
+// ─── Hero Image ──────────────────────────────────────────────
+
+/**
+ * Download hero image from Supabase Storage to a local temp file.
+ * Uses service_role key so no RLS issues.
+ * @param {string} storagePath - path in the publication-files bucket
+ * @returns {Promise<string>} - local temp file path
+ */
+async function downloadHeroImage(storagePath) {
+  return withBreaker('downloadHeroImage', async () => {
+    const { data, error } = await getClient()
+      .storage
+      .from('publication-files')
+      .download(storagePath);
+
+    if (error) throw new Error(`downloadHeroImage: ${error.message}`);
+    if (!data) throw new Error('downloadHeroImage: pas de donnees');
+
+    const ext = storagePath.split('.').pop() || 'jpg';
+    const tmpPath = path.join(os.tmpdir(), `hero-${Date.now()}.${ext}`);
+    const buffer = Buffer.from(await data.arrayBuffer());
+    fs.writeFileSync(tmpPath, buffer);
+    logger.info(`Hero image downloaded: ${tmpPath} (${buffer.length} bytes)`);
+    return tmpPath;
+  });
+}
+
+/**
+ * Update publication metadata (merge with existing).
+ * @param {string} publicationId
+ * @param {object} metadataUpdates - keys/values to merge into metadata JSONB
+ */
+async function updatePublicationMetadata(publicationId, metadataUpdates) {
+  return withBreaker('updatePublicationMetadata', async () => {
+    const { data: pub, error: readErr } = await getClient()
+      .from('publications')
+      .select('metadata')
+      .eq('id', publicationId)
+      .single();
+
+    if (readErr) throw new Error(`updatePublicationMetadata read: ${readErr.message}`);
+
+    const merged = { ...(pub?.metadata || {}), ...metadataUpdates };
+
+    const { error } = await getClient()
+      .from('publications')
+      .update({ metadata: merged })
+      .eq('id', publicationId);
+
+    if (error) throw new Error(`updatePublicationMetadata: ${error.message}`);
+    logger.info(`Publication ${publicationId} metadata updated: ${JSON.stringify(metadataUpdates)}`);
+  });
+}
+
 // ─── Exports ──────────────────────────────────────────────────
 
 module.exports = {
@@ -171,4 +229,6 @@ module.exports = {
   markPublished,
   ackTask,
   failTask,
+  downloadHeroImage,
+  updatePublicationMetadata,
 };
