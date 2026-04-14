@@ -34,6 +34,7 @@ jobs:
           mkdir -p secrets
           echo '{"url":"${{ secrets.SUPABASE_URL }}","service_role_key":"${{ secrets.SUPABASE_SERVICE_KEY }}"}' > secrets/supabase.json
           echo '{"token":"${{ secrets.SANITY_TOKEN }}"}' > secrets/sanity.json
+          echo '{"api_key":"${{ secrets.SEMRUSH_API_KEY }}"}' > secrets/semrush.json
           echo '{"api_key":"${{ secrets.RESEND_API_KEY }}","from":"${{ secrets.RESEND_FROM }}"}' > secrets/resend.json
 
       - name: Run daily workflow
