@@ -258,7 +258,7 @@ async function main() {
 
       // ── generate_article / other actions ──
       const p = task.payload || {};
-      const site = p.site;
+      const site = (p.site || '').replace(/^https?:\/\//, '').replace(/\/+$/, '');
       const keyword = sanitize(p.theme || p.title || 'article').replace(/[\n\r]+/g, ' ');
       if (!site) throw new Error('Payload sans site');
 
