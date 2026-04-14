@@ -125,18 +125,25 @@ async function main() {
 
       const output = runArticle(site, keyword, flags, apiKey);
       if (!dryRun) {
-        const urlMatch = output.toString().match(/https?:\/\/[^\s]+/);
+        const stdout = output.toString();
+        const urlMatch = stdout.match(/https?:\/\/[^\s]+/);
         await markPublished(pub.id, urlMatch ? urlMatch[0] : null);
 
-        // Tracability: extract sanity asset id from stdout if hero custom was used
+        // Tracability: extract sanity doc id + asset id from stdout
+        const metaUpdates = {};
+        const docIdMatch = stdout.match(/\+ FR: (article-[a-zA-Z0-9-]+)/);
+        if (docIdMatch) metaUpdates.sanity_doc_id = docIdMatch[1];
+
         if (heroTmpPath) {
-          const assetMatch = output.toString().match(/Image asset: (image-[a-zA-Z0-9-]+)/);
+          const assetMatch = stdout.match(/Image asset: (image-[a-zA-Z0-9-]+)/);
           if (assetMatch) {
-            await updatePublicationMetadata(pub.id, {
-              hero_sanity_asset_id: assetMatch[1],
-              hero_uploaded_at: new Date().toISOString(),
-            });
+            metaUpdates.hero_sanity_asset_id = assetMatch[1];
+            metaUpdates.hero_uploaded_at = new Date().toISOString();
           }
+        }
+
+        if (Object.keys(metaUpdates).length > 0) {
+          await updatePublicationMetadata(pub.id, metaUpdates);
         }
 
         await sendPublicationNotification(site, pub.title, pub.theme, urlMatch ? urlMatch[0] : null);
@@ -198,7 +205,8 @@ async function main() {
       }
 
       const output = runArticle(site, keyword, flags, apiKey);
-      const urlMatch = output.toString().match(/https?:\/\/[^\s]+/);
+      const stdout = output.toString();
+      const urlMatch = stdout.match(/https?:\/\/[^\s]+/);
 
       if (!dryRun) {
         await ackTask(task.id, { content_url: urlMatch ? urlMatch[0] : null });
@@ -206,14 +214,22 @@ async function main() {
           await markPublished(task.publication_id, urlMatch[0]);
         }
 
-        // Tracability: hero image
-        if (heroTmpPath && task.publication_id) {
-          const assetMatch = output.toString().match(/Image asset: (image-[a-zA-Z0-9-]+)/);
-          if (assetMatch) {
-            await updatePublicationMetadata(task.publication_id, {
-              hero_sanity_asset_id: assetMatch[1],
-              hero_uploaded_at: new Date().toISOString(),
-            });
+        // Tracability: extract sanity doc id + asset id from stdout
+        if (task.publication_id) {
+          const metaUpdates = {};
+          const docIdMatch = stdout.match(/\+ FR: (article-[a-zA-Z0-9-]+)/);
+          if (docIdMatch) metaUpdates.sanity_doc_id = docIdMatch[1];
+
+          if (heroTmpPath) {
+            const assetMatch = stdout.match(/Image asset: (image-[a-zA-Z0-9-]+)/);
+            if (assetMatch) {
+              metaUpdates.hero_sanity_asset_id = assetMatch[1];
+              metaUpdates.hero_uploaded_at = new Date().toISOString();
+            }
+          }
+
+          if (Object.keys(metaUpdates).length > 0) {
+            await updatePublicationMetadata(task.publication_id, metaUpdates);
           }
         }
 
