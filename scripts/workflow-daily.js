@@ -24,6 +24,7 @@ const {
   fetchTodayPublications, fetchPendingTasks,
   markPublished, ackTask, failTask,
   downloadHeroImage, updatePublicationMetadata,
+  saveDraftContent, createNotification, fetchSiteAdmins,
 } = require('./calendar-connector');
 
 const SCRIPTS_DIR = __dirname;
@@ -182,14 +183,16 @@ async function main() {
       const inputErrors = validateArticleInput({ site, keyword });
       if (inputErrors.length > 0) throw new Error(`Input invalide: ${inputErrors.join(', ')}`);
 
-      const flags = dryRun ? ['--dry-run'] : ['--force'];
+      // generate_article tasks use --draft-only (store locally, no Sanity publish)
+      const isDraftOnly = task.action === 'generate_article';
+      const flags = dryRun ? ['--dry-run'] : (isDraftOnly ? ['--draft-only', '--force'] : ['--force']);
 
       // Hero image: read hero_image_path from the associated publication
       let heroTmpPath = null;
       if (task.publication_id) {
         const { data: pubData } = await require('./calendar-connector').getClient()
           .from('publications')
-          .select('hero_image_path')
+          .select('hero_image_path, website_id')
           .eq('id', task.publication_id)
           .single();
 
@@ -202,13 +205,51 @@ async function main() {
             logger.warn(`Hero image download failed for task ${task.id}: ${imgErr.message} — will use default`);
           }
         }
+
+        // Store website_id for admin notification lookup
+        if (pubData?.website_id) p._website_id = pubData.website_id;
       }
 
       const output = runArticle(site, keyword, flags, apiKey);
       const stdout = output.toString();
-      const urlMatch = stdout.match(/https?:\/\/[^\s]+/);
 
-      if (!dryRun) {
+      if (!dryRun && isDraftOnly) {
+        // ── Draft-only path: store JSON locally, notify admins ──
+        const draftLine = stdout.split('\n').find((l) => l.startsWith('DRAFT_JSON:'));
+        if (!draftLine) throw new Error('DRAFT_JSON line not found in output');
+
+        const parsedDraft = JSON.parse(draftLine.slice('DRAFT_JSON:'.length));
+
+        if (task.publication_id) {
+          await saveDraftContent(task.publication_id, parsedDraft);
+        }
+
+        await ackTask(task.id, { draft: true, title: parsedDraft.title });
+
+        // Notify site admins/super_admins
+        if (p._website_id) {
+          try {
+            const adminIds = await fetchSiteAdmins(p._website_id);
+            for (const adminId of adminIds) {
+              await createNotification(
+                adminId,
+                'draft_ready',
+                `Brouillon prêt : ${parsedDraft.title || keyword}`,
+                `L'article "${parsedDraft.title || keyword}" pour ${site} est prêt à relire.`,
+                task.publication_id,
+              );
+            }
+            logger.info(`Notified ${adminIds.length} admin(s) for draft on ${site}`);
+          } catch (notifErr) {
+            logger.warn(`Admin notification failed: ${notifErr.message}`);
+          }
+        }
+
+        console.log(`     + DRAFT saved (not published to Sanity)`);
+      } else if (!dryRun) {
+        // ── Standard path: publish to Sanity ──
+        const urlMatch = stdout.match(/https?:\/\/[^\s]+/);
+
         await ackTask(task.id, { content_url: urlMatch ? urlMatch[0] : null });
         if (task.publication_id && urlMatch) {
           await markPublished(task.publication_id, urlMatch[0]);

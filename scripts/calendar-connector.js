@@ -225,6 +225,64 @@ async function updatePublicationMetadata(publicationId, metadataUpdates) {
   });
 }
 
+// ─── Draft Content & Notifications ───────────────────────────
+
+/**
+ * Store draft content JSON on a publication and set status to 'in_review'.
+ * @param {string} publicationId
+ * @param {object} draftJson - article content JSON
+ */
+async function saveDraftContent(publicationId, draftJson) {
+  return withBreaker('saveDraftContent', async () => {
+    const { error } = await getClient()
+      .from('publications')
+      .update({ draft_content: draftJson, status: 'in_review' })
+      .eq('id', publicationId);
+
+    if (error) throw new Error(`saveDraftContent(${publicationId}): ${error.message}`);
+    logger.info(`Publication ${publicationId} draft content saved, status → in_review`);
+  });
+}
+
+/**
+ * Insert a notification for a user.
+ * @param {string} userId - user_roles.id
+ * @param {string} type - notification type
+ * @param {string} title
+ * @param {string} message
+ * @param {string|null} publicationId
+ */
+async function createNotification(userId, type, title, message, publicationId) {
+  return withBreaker('createNotification', async () => {
+    const row = { user_id: userId, type, title, message: message || null, publication_id: publicationId || null };
+    const { error } = await getClient()
+      .from('notifications')
+      .insert(row);
+
+    if (error) throw new Error(`createNotification(${userId}): ${error.message}`);
+    logger.info(`Notification created for ${userId}: ${type}`);
+  });
+}
+
+/**
+ * Fetch admin & super_admin user_roles IDs assigned to a website.
+ * @param {string} websiteId
+ * @returns {Promise<string[]>} array of user_roles.id
+ */
+async function fetchSiteAdmins(websiteId) {
+  return withBreaker('fetchSiteAdmins', async () => {
+    const { data, error } = await getClient()
+      .from('user_roles')
+      .select('id, user_site_assignments!inner(website_id)')
+      .in('role', ['super_admin', 'admin'])
+      .eq('active', true)
+      .eq('user_site_assignments.website_id', websiteId);
+
+    if (error) throw new Error(`fetchSiteAdmins(${websiteId}): ${error.message}`);
+    return (data || []).map((r) => r.id);
+  });
+}
+
 // ─── Exports ──────────────────────────────────────────────────
 
 module.exports = {
@@ -236,4 +294,7 @@ module.exports = {
   failTask,
   downloadHeroImage,
   updatePublicationMetadata,
+  saveDraftContent,
+  createNotification,
+  fetchSiteAdmins,
 };

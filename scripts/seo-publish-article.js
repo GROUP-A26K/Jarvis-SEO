@@ -37,9 +37,9 @@ const JSON_TRACKING_PATH = PATHS.jsonTracking;
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const opts = { dryRun: false, preProd: false, force: false, enrich: false, personaAutoSelected: false, imagePath: null, imageAlt: null };
-  for (let i = 0; i < args.length; i++) { switch (args[i]) { case '--site': opts.site = args[++i]; break; case '--keyword': opts.keyword = args[++i]; break; case '--persona': opts.persona = args[++i]; break; case '--image-path': opts.imagePath = args[++i]; break; case '--image-alt': opts.imageAlt = args[++i]; break; case '--dry-run': opts.dryRun = true; break; case '--pre-prod': opts.preProd = true; break; case '--force': opts.force = true; break; case '--enrich': opts.enrich = true; break; } }
-  if (!opts.site || !opts.keyword) { console.error('Usage: --site <s> --keyword <kw> [--persona <p>] [--image-path <f>] [--image-alt <t>] [--dry-run] [--pre-prod] [--force] [--enrich]'); process.exit(1); }
+  const opts = { dryRun: false, preProd: false, draftOnly: false, force: false, enrich: false, personaAutoSelected: false, imagePath: null, imageAlt: null };
+  for (let i = 0; i < args.length; i++) { switch (args[i]) { case '--site': opts.site = args[++i]; break; case '--keyword': opts.keyword = args[++i]; break; case '--persona': opts.persona = args[++i]; break; case '--image-path': opts.imagePath = args[++i]; break; case '--image-alt': opts.imageAlt = args[++i]; break; case '--dry-run': opts.dryRun = true; break; case '--pre-prod': opts.preProd = true; break; case '--draft-only': opts.draftOnly = true; break; case '--force': opts.force = true; break; case '--enrich': opts.enrich = true; break; } }
+  if (!opts.site || !opts.keyword) { console.error('Usage: --site <s> --keyword <kw> [--persona <p>] [--image-path <f>] [--image-alt <t>] [--dry-run] [--pre-prod] [--draft-only] [--force] [--enrich]'); process.exit(1); }
   if (!VALID_SITES.includes(opts.site)) { console.error(`Site inconnu: "${opts.site}"`); process.exit(1); }
   if (opts.imagePath) {
     opts.imagePath = path.resolve(opts.imagePath);
@@ -933,6 +933,30 @@ ${htmlSections}${faqHtml}
       [{ filename: `preprod-${slug}.pdf`, content: pdfB64 }]
     );
     console.log(`\n+ PRE-PROD email envoyé | PDF: ${pdfPath}`);
+    if (db) db.close();
+    printUnitsSummary();
+    return;
+  }
+
+  // ─── DRAFT ONLY ────────────────────────────────────────────
+  // Generates article but does NOT publish to Sanity.
+  // Outputs DRAFT_JSON:{...} on stdout for caller to parse.
+  if (opts.draftOnly) {
+    console.log('\n> MODE DRAFT-ONLY : generation sans publication Sanity');
+    const draftJson = {
+      title: articleFR.title,
+      slug: articleFR.slug,
+      summary: articleFR.summary,
+      metaTitle: articleFR.metaTitle,
+      metaDescription: articleFR.metaDescription,
+      sections: articleFR.sections,
+      faq: articleFR.faq,
+      persona: opts.persona,
+      disclaimer,
+      sourceUrls: articleFR.sourceUrls || [],
+    };
+    console.log(`DRAFT_JSON:${JSON.stringify(draftJson)}`);
+    console.log(`\n+ DRAFT generated: "${articleFR.title}"`);
     if (db) db.close();
     printUnitsSummary();
     return;
