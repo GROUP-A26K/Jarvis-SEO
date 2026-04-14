@@ -1088,3 +1088,5 @@ ${htmlSections}${faqHtml}
 if (require.main === module) {
   main().catch((err) => { console.error(`\n! Fatal: ${err.message}`); process.exit(1); });
 }
+
+module.exports = { publishToSanity, uploadImageToSanity, buildSanityBody, generateDisclaimer };
