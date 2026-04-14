@@ -1,0 +1,60 @@
+name: Jarvis On-Demand Generation
+
+on:
+  workflow_dispatch:
+    inputs:
+      task_id:
+        description: 'ID de la jarvis_task à traiter'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  single-task:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      BFL_API_KEY: ${{ secrets.BFL_API_KEY }}
+      NOTIFY_EMAILS: ${{ secrets.NOTIFY_EMAILS }}
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 18
+          cache: npm
+
+      - run: npm ci
+
+      # Créer secrets/ depuis les GitHub Secrets (runner éphémère, nettoyé en fin de job)
+      - name: Write secrets files
+        run: |
+          mkdir -p secrets
+          echo '{"url":"${{ secrets.SUPABASE_URL }}","service_role_key":"${{ secrets.SUPABASE_SERVICE_KEY }}"}' > secrets/supabase.json
+          echo '{"token":"${{ secrets.SANITY_TOKEN }}"}' > secrets/sanity.json
+          echo '{"api_key":"${{ secrets.RESEND_API_KEY }}","from":"${{ secrets.RESEND_FROM }}"}' > secrets/resend.json
+
+      - name: Run single task
+        run: node scripts/workflow-single-task.js --task-id ${{ github.event.inputs.task_id }}
+
+      # Alerting on failure
+      - name: Notify on failure
+        if: failure()
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM: ${{ secrets.RESEND_FROM }}
+        run: |
+          echo "::error::Jarvis on-demand task failed — task_id=${{ github.event.inputs.task_id }}"
+          curl -s -X POST https://api.resend.com/emails \
+            -H "Authorization: Bearer $RESEND_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"from\":\"$RESEND_FROM\",\"to\":\"$NOTIFY_EMAILS\",\"subject\":\"[Jarvis SEO] On-demand task FAILED (${{ github.event.inputs.task_id }})\",\"text\":\"La tache on-demand a echoue. Task ID: ${{ github.event.inputs.task_id }}. Verifier GitHub Actions: https://github.com/GROUP-A26K/Jarvis-SEO/actions\"}" || true
+
+      # Nettoyage explicite des secrets (même si le runner est éphémère)
+      - name: Cleanup secrets
+        if: always()
+        run: rm -rf secrets/
