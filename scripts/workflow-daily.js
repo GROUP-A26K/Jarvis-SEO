@@ -21,11 +21,13 @@ const {
 } = require('./seo-shared');
 const fs = require('fs');
 const {
+  getClient,
   fetchTodayPublications, fetchPendingTasks,
   markPublished, ackTask, failTask,
   downloadHeroImage, updatePublicationMetadata,
   saveDraftContent, createNotification, fetchSiteAdmins,
 } = require('./calendar-connector');
+const { publishToSanity, uploadImageToSanity } = require('./seo-publish-article');
 
 const SCRIPTS_DIR = __dirname;
 const dryRun = process.argv.includes('--dry-run');
@@ -180,7 +182,7 @@ async function main() {
         if (!task.publication_id) throw new Error('publish_draft requires publication_id');
         if (dryRun) { console.log('     [DRY-RUN] skip publish_draft'); results.tasks++; continue; }
 
-        const { data: pubRow, error: pubErr } = await require('./calendar-connector').getClient()
+        const { data: pubRow, error: pubErr } = await getClient()
           .from('publications')
           .select('draft_content, hero_image_path, metadata, website_id, websites(domain, sanity_document_type)')
           .eq('id', task.publication_id)
@@ -189,6 +191,7 @@ async function main() {
         if (!pubRow?.draft_content) throw new Error('No draft_content on publication');
 
         const draft = pubRow.draft_content;
+        if (!draft.title || !draft.slug || !Array.isArray(draft.sections)) throw new Error('draft_content is malformed: missing title, slug, or sections');
         const site = pubRow.websites?.domain;
         if (!site) throw new Error('Publication has no site domain');
 
@@ -208,7 +211,6 @@ async function main() {
         if (pubRow.hero_image_path) {
           try {
             heroTmpPath = await downloadHeroImage(pubRow.hero_image_path);
-            const { uploadImageToSanity } = require('./seo-publish-article');
             imageAssetId = await uploadImageToSanity(heroTmpPath);
             console.log(`     + Hero image uploaded: ${imageAssetId}`);
           } catch (imgErr) {
@@ -217,7 +219,6 @@ async function main() {
         }
 
         // Publish to Sanity
-        const { publishToSanity } = require('./seo-publish-article');
         const geoScore = { total: 0, status: 'unknown' };
         const keyword = draft.title || '';
         const resFR = await publishToSanity(site, article, 'fr', persona, geoScore, disclaimer, imageAssetId, null, [], keyword);
@@ -230,7 +231,7 @@ async function main() {
           metaUpdates.hero_sanity_asset_id = imageAssetId;
           metaUpdates.hero_uploaded_at = new Date().toISOString();
         }
-        await require('./calendar-connector').getClient()
+        await getClient()
           .from('publications')
           .update({ status: 'published', content_url: contentUrl, metadata: metaUpdates, draft_content: null })
           .eq('id', task.publication_id);
@@ -270,8 +271,9 @@ async function main() {
 
       // Hero image: read hero_image_path from the associated publication
       let heroTmpPath = null;
+      let taskWebsiteId = null;
       if (task.publication_id) {
-        const { data: pubData } = await require('./calendar-connector').getClient()
+        const { data: pubData } = await getClient()
           .from('publications')
           .select('hero_image_path, website_id')
           .eq('id', task.publication_id)
@@ -287,8 +289,7 @@ async function main() {
           }
         }
 
-        // Store website_id for admin notification lookup
-        if (pubData?.website_id) p._website_id = pubData.website_id;
+        taskWebsiteId = pubData?.website_id || null;
       }
 
       const output = runArticle(site, keyword, flags, apiKey);
@@ -299,7 +300,9 @@ async function main() {
         const draftLine = stdout.split('\n').find((l) => l.startsWith('DRAFT_JSON:'));
         if (!draftLine) throw new Error('DRAFT_JSON line not found in output');
 
-        const parsedDraft = JSON.parse(draftLine.slice('DRAFT_JSON:'.length));
+        let parsedDraft;
+        try { parsedDraft = JSON.parse(draftLine.slice('DRAFT_JSON:'.length)); }
+        catch (parseErr) { throw new Error(`DRAFT_JSON parse failed: ${parseErr.message}`); }
 
         if (task.publication_id) {
           await saveDraftContent(task.publication_id, parsedDraft);
@@ -308,9 +311,9 @@ async function main() {
         await ackTask(task.id, { draft: true, title: parsedDraft.title });
 
         // Notify site admins/super_admins
-        if (p._website_id) {
+        if (taskWebsiteId) {
           try {
-            const adminIds = await fetchSiteAdmins(p._website_id);
+            const adminIds = await fetchSiteAdmins(taskWebsiteId);
             for (const adminId of adminIds) {
               await createNotification(
                 adminId,

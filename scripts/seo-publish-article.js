@@ -954,6 +954,7 @@ ${htmlSections}${faqHtml}
       persona: opts.persona,
       disclaimer,
       sourceUrls: articleFR.sourceUrls || [],
+      citableExtracts: articleFR.citableExtracts || [],
     };
     console.log(`DRAFT_JSON:${JSON.stringify(draftJson)}`);
     console.log(`\n+ DRAFT generated: "${articleFR.title}"`);
