@@ -15,12 +15,12 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const {
   logger, requireAnthropicKey, sendEmail, esc, TIMEOUTS,
-  validateArticleInput, sanitize,
+  validateArticleInput, sanitize, getSiteConfig,
 } = require('./seo-shared');
 const {
   getClient,
   ackTask, failTask,
-  downloadHeroImage, updatePublicationMetadata,
+  downloadHeroImage, uploadExhibitToStorage, updatePublicationMetadata,
   saveDraftContent, createNotification, fetchSiteAdmins,
   markPublished,
 } = require('./calendar-connector');
@@ -213,6 +213,58 @@ async function main() {
       return;
     }
 
+    // ── regenerate_exhibit action ──
+    if (task.action === 'regenerate_exhibit') {
+      if (!task.publication_id) throw new Error('regenerate_exhibit requires publication_id');
+      const exhibitNumber = task.payload?.exhibit_number || 1;
+      const userPrompt = task.payload?.prompt || '';
+
+      const { data: pubRow, error: pubErr } = await getClient()
+        .from('publications')
+        .select('draft_content, website_id, websites(domain)')
+        .eq('id', task.publication_id)
+        .single();
+      if (pubErr) throw new Error(`Fetch publication: ${pubErr.message}`);
+      if (!pubRow?.draft_content) throw new Error('No draft_content on publication');
+
+      const draft = pubRow.draft_content;
+      const site = pubRow.websites?.domain;
+      if (!site) throw new Error('Publication has no site domain');
+
+      const fullText = (draft.sections || []).map(s => `${s.heading}\n${s.content}`).join('\n\n');
+
+      const { planExhibits, processExhibit } = require('./seo-exhibits');
+      const apiKey = requireAnthropicKey();
+      const siteConf = getSiteConfig(site);
+
+      const keyword = draft.title || '';
+      const briefs = await planExhibits(apiKey, fullText, siteConf ? siteConf.siteContext : {}, keyword);
+      const brief = briefs.find(b => b.exhibit_number === exhibitNumber) || briefs[0];
+      if (!brief) throw new Error('No exhibit brief generated');
+
+      if (userPrompt) {
+        brief.data_context = `${brief.data_context}. Instructions supplémentaires: ${userPrompt}`;
+      }
+
+      const result = await processExhibit(apiKey, fullText, brief, keyword, site, draft.slug, true);
+      if (!result) throw new Error('Exhibit generation failed');
+
+      // Upload to storage
+      const storagePath = await uploadExhibitToStorage(task.publication_id, exhibitNumber, result.pngPath);
+
+      // Update draft_content.exhibits
+      const updatedExhibits = (draft.exhibits || []).filter(e => e.exhibitNumber !== exhibitNumber);
+      updatedExhibits.push({ altText: result.altText, exhibitNumber, storagePath });
+      updatedExhibits.sort((a, b) => a.exhibitNumber - b.exhibitNumber);
+
+      const updatedDraft = { ...draft, exhibits: updatedExhibits };
+      await getClient().from('publications').update({ draft_content: updatedDraft }).eq('id', task.publication_id);
+
+      await ackTask(task.id, { exhibit_number: exhibitNumber, storage_path: storagePath });
+      console.log(`  + Exhibit ${exhibitNumber} regenerated and uploaded\n`);
+      return;
+    }
+
     // ── generate_article / other actions ──
     const p = task.payload || {};
     const site = (p.site || '').replace(/^https?:\/\//, '').replace(/\/+$/, '');
@@ -263,6 +315,29 @@ async function main() {
 
       if (task.publication_id) {
         await saveDraftContent(task.publication_id, parsedDraft);
+      }
+
+      // Upload exhibit PNGs to Supabase Storage and update draft_content with paths
+      if (task.publication_id && parsedDraft.exhibits && parsedDraft.exhibits.length > 0) {
+        try {
+          const exhibitPaths = [];
+          const exhibitsDir = path.join(SCRIPTS_DIR, '..', 'images', 'exhibits');
+          for (const ex of parsedDraft.exhibits) {
+            const pngFiles = fs.readdirSync(exhibitsDir).filter(f => f.includes(`-${ex.exhibitNumber}`) && f.endsWith('-source.png'));
+            if (pngFiles.length > 0) {
+              const localPath = path.join(exhibitsDir, pngFiles[0]);
+              const storagePath = await uploadExhibitToStorage(task.publication_id, ex.exhibitNumber, localPath);
+              exhibitPaths.push({ ...ex, storagePath });
+            }
+          }
+          if (exhibitPaths.length > 0) {
+            const updatedDraft = { ...parsedDraft, exhibits: exhibitPaths };
+            await saveDraftContent(task.publication_id, updatedDraft);
+            console.log(`  + ${exhibitPaths.length} exhibit(s) uploaded to Storage`);
+          }
+        } catch (exErr) {
+          logger.warn(`Exhibit upload to Storage failed: ${exErr.message}`);
+        }
       }
 
       await ackTask(task.id, { draft: true, title: parsedDraft.title });

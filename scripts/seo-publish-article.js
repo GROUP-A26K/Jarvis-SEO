@@ -943,6 +943,30 @@ ${htmlSections}${faqHtml}
   // Outputs DRAFT_JSON:{...} on stdout for caller to parse.
   if (opts.draftOnly) {
     console.log('\n> MODE DRAFT-ONLY : generation sans publication Sanity');
+
+    // Generate exhibits in draft-only mode too
+    let draftExhibits = [];
+    try {
+      const { generateExhibits } = require('./seo-exhibits');
+      const siteConf = getSiteConfig(opts.site);
+      const fullText = articleFR.sections.map(s => `${s.heading}\n${s.content}`).join('\n\n');
+      const exhibitResults = await generateExhibits(fullText, siteConf ? siteConf.siteContext : {}, opts.keyword, opts.site, articleFR.slug, true);
+      if (exhibitResults.length > 0) {
+        console.log(`  + ${exhibitResults.length} exhibit(s) generated in draft mode`);
+        for (const ex of exhibitResults) {
+          draftExhibits.push({
+            filename: ex.filename,
+            altText: ex.altText,
+            pngPath: ex.pngPath,
+            svgPath: ex.svgPath || null,
+            exhibitNumber: ex.filename.match(/-(\d+)/) ? parseInt(ex.filename.match(/-(\d+)/)[1]) : draftExhibits.length + 1,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn(`  ~ Exhibits draft skipped: ${e.message}`);
+    }
+
     const draftJson = {
       title: articleFR.title,
       slug: articleFR.slug,
@@ -955,6 +979,7 @@ ${htmlSections}${faqHtml}
       disclaimer,
       sourceUrls: articleFR.sourceUrls || [],
       citableExtracts: articleFR.citableExtracts || [],
+      exhibits: draftExhibits.map(ex => ({ altText: ex.altText, exhibitNumber: ex.exhibitNumber })),
     };
     console.log(`DRAFT_JSON:${JSON.stringify(draftJson)}`);
     console.log(`\n+ DRAFT generated: "${articleFR.title}"`);

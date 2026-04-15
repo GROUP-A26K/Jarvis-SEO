@@ -199,6 +199,26 @@ async function downloadHeroImage(storagePath) {
 }
 
 /**
+ * Upload an exhibit PNG to Supabase Storage.
+ * @param {string} publicationId
+ * @param {number} exhibitNumber - 1 or 2
+ * @param {string} localPngPath - local file path
+ * @returns {Promise<string>} - storage path
+ */
+async function uploadExhibitToStorage(publicationId, exhibitNumber, localPngPath) {
+  return withBreaker('uploadExhibitToStorage', async () => {
+    const storagePath = `exhibits/${publicationId}/exhibit-${exhibitNumber}.png`;
+    const fileBuffer = fs.readFileSync(localPngPath);
+    const { error } = await getClient().storage
+      .from('publication-files')
+      .upload(storagePath, fileBuffer, { cacheControl: '3600', upsert: true, contentType: 'image/png' });
+    if (error) throw new Error(`uploadExhibitToStorage: ${error.message}`);
+    logger.info(`Exhibit ${exhibitNumber} uploaded: ${storagePath}`);
+    return storagePath;
+  });
+}
+
+/**
  * Update publication metadata (merge with existing).
  * @param {string} publicationId
  * @param {object} metadataUpdates - keys/values to merge into metadata JSONB
@@ -293,6 +313,7 @@ module.exports = {
   ackTask,
   failTask,
   downloadHeroImage,
+  uploadExhibitToStorage,
   updatePublicationMetadata,
   saveDraftContent,
   createNotification,
