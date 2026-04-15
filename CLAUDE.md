@@ -101,6 +101,13 @@ npm run exhibits:dry              # Exhibit dry-run (SVG seul)
   - `BFL_API_KEY` (optionnel, images)
   - `RESEND_API_KEY`, `RESEND_FROM` (notifications email)
 
+## Intégration Calendar — Exhibits en mode draft
+- `seo-publish-article.js` : mode `--draft-only` génère aussi les exhibits (infographies PNG) via `seo-exhibits.js`
+- `workflow-single-task.js` : action `regenerate_exhibit` — régénère un exhibit spécifique avec prompt utilisateur optionnel
+- `calendar-connector.js` : `uploadExhibitToStorage()` — upload PNG vers Supabase Storage (bucket publication-files, path exhibits/{pub_id}/exhibit-N.png)
+- `seo-exhibits.js` : `processExhibit` exporté pour utilisation par regenerate_exhibit
+- draft_content.exhibits[] : `[{ altText, exhibitNumber, storagePath }]`
+
 ## Conventions
 - Node.js ESM, pas de Python
 - Zero SQL interpolation (mapping statique)
