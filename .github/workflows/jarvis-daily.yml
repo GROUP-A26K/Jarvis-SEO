@@ -17,6 +17,9 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       BFL_API_KEY: ${{ secrets.BFL_API_KEY }}
       NOTIFY_EMAILS: ${{ secrets.NOTIFY_EMAILS }}
+      SENTRY_DSN_SEO: ${{ secrets.SENTRY_DSN_SEO }}
+      SENTRY_ENVIRONMENT: production
+      SENTRY_RELEASE_SHA: ${{ github.sha }}
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4

@@ -5,6 +5,9 @@
  * sommaire/TOC, Claude retry, toutes features v4 preservees.
  * Jarvis One — Groupe Genevoise
  */
+const sentry = require('./lib/sentry');
+sentry.init({ script: 'seo-publish-article' });
+
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
@@ -1112,7 +1115,7 @@ ${htmlSections}${faqHtml}
 }
 
 if (require.main === module) {
-  main().catch((err) => { console.error(`\n! Fatal: ${err.message}`); process.exit(1); });
+  main().catch((err) => sentry.fatal(err));
 }
 
 module.exports = { publishToSanity, uploadImageToSanity, buildSanityBody, generateDisclaimer };
