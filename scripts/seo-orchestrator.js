@@ -19,6 +19,9 @@
  *
  * Jarvis One — Groupe Genevoise
  */
+const sentry = require('./lib/sentry');
+sentry.init({ script: 'seo-orchestrator' });
+
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
@@ -650,5 +653,5 @@ async function main() {
 }
 
 if (require.main === module) {
-  main().catch((err) => { console.error(`\n! Fatal: ${err.message}`); process.exit(1); });
+  main().catch((err) => sentry.fatal(err));
 }

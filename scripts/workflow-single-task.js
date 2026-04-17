@@ -10,6 +10,9 @@
  *
  * Jarvis One — A26K Group
  */
+const sentry = require('./lib/sentry');
+sentry.init({ script: 'workflow-single-task' });
+
 const path = require('path');
 const { execFileSync } = require('child_process');
 const fs = require('fs');
@@ -405,4 +408,4 @@ async function main() {
   }
 }
 
-main().catch((err) => { console.error(`\n! Fatal: ${err.message}`); process.exit(1); });
+main().catch((err) => sentry.fatal(err));
