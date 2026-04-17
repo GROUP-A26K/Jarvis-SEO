@@ -281,7 +281,7 @@
       "helvetia.ch"
     ],
     "sanity": {
-      "documentType": "assuranceGenevoiseBlogPost"
+      "documentType": "blogPost"
     },
     "imageStyle": {
       "secteurRef": "FINANCE / BANQUE / ASSURANCE",

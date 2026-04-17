@@ -640,7 +640,7 @@ function buildArticleSchema(article, site, persona, slug, lang) {
     author: { '@type': 'Person', name: persona, jobTitle: getPersonaDetails(persona).style ? getPersonaDetails(persona).style.split('.')[0] : 'Expert' },
     publisher: { '@type': 'Organization', name: getSiteEntity(site), url: `https://${site}` },
     datePublished: new Date().toISOString().split('T')[0],
-    url: `https://${site}/${slug}`,
+    url: `https://${site}/blog/${slug.replace(/^(fr|en)-/, '')}`,
     inLanguage: lang === 'en' ? 'en' : 'fr-CH',
   };
 }
@@ -650,7 +650,7 @@ function buildSpeakableSchema(article, site, slug) {
   if (extracts.length === 0) return null;
   return {
     '@context': 'https://schema.org', '@type': 'WebPage',
-    url: `https://${site}/${slug}`,
+    url: `https://${site}/blog/${slug.replace(/^(fr|en)-/, '')}`,
     speakable: { '@type': 'SpeakableSpecification', cssSelector: ['.citable-extract'] },
   };
 }
@@ -708,7 +708,7 @@ async function uploadImageToSanity(imagePath, seoFilename) {
 
 async function publishToSanity(site, article, lang, persona, geoScore, disclaimer, imageAssetId, imageAlt, exhibitAssetIds, keyword) {
   let token; try { const s = loadSecret('sanity'); token = s.token || s.api_token; } catch (e) { throw new Error(`Sanity token requis. ${e.message}`); }
-  const slug = lang === 'en' ? `en/${article.slug}` : article.slug;
+  const slug = `${lang}-${article.slug}`;
   const docId = `article-${slug.replace(/\//g, '-')}-${Date.now()}`;
 
   // Use uploaded image or fallback to default

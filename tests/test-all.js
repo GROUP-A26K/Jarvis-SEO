@@ -251,7 +251,7 @@ test('returns correct type for medcourtage', () => {
   assertEqual(shared.getSanityDocType('medcourtage.ch'), 'medcourtageBlogPost');
 });
 test('returns correct type for assurance', () => {
-  assertEqual(shared.getSanityDocType('assurance-genevoise.ch'), 'assuranceGenevoiseBlogPost');
+  assertEqual(shared.getSanityDocType('assurance-genevoise.ch'), 'blogPost');
 });
 
 suite('getPersonaDetails');
