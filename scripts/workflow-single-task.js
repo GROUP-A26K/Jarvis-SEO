@@ -14,11 +14,12 @@ const sentry = require('./lib/sentry');
 sentry.init({ script: 'workflow-single-task' });
 
 const path = require('path');
+const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const {
   logger, requireAnthropicKey, sendEmail, esc, TIMEOUTS,
-  validateArticleInput, sanitize, getSiteConfig,
+  validateArticleInput, sanitize, getSiteConfig, readTaskResult,
 } = require('./seo-shared');
 const {
   getClient,
@@ -50,15 +51,31 @@ function parseTaskId() {
 
 // ─── Shared helpers (same logic as workflow-daily.js) ────────
 
-function runArticle(site, keyword, extraFlags, apiKey) {
+// PR 0.3 : runArticle returns { stdout, result, outputJsonPath, execError }
+// The result is read from a JSON file written by seo-publish-article.js
+// instead of parsing stdout.
+function runArticle(site, keyword, extraFlags, apiKey, taskId) {
   const scriptPath = path.join(SCRIPTS_DIR, 'seo-publish-article.js');
-  const args = [scriptPath, '--site', site, '--keyword', keyword];
+  const tmpDir = process.env.RUNNER_TEMP || '/tmp';
+  const uniqueId = taskId || crypto.randomBytes(8).toString('hex');
+  const outputJsonPath = path.join(tmpDir, `jarvis-result-${uniqueId}.json`);
+  const args = [scriptPath, '--site', site, '--keyword', keyword, '--output-json', outputJsonPath];
+  if (taskId) { args.push('--task-id', taskId); }
   if (extraFlags) for (const f of extraFlags) args.push(f);
-  return execFileSync(process.execPath, args, {
-    stdio: 'pipe',
-    env: { ...process.env, ANTHROPIC_API_KEY: apiKey },
-    timeout: 5 * TIMEOUTS.claude,
-  });
+  let stdout = '';
+  let execError = null;
+  try {
+    stdout = execFileSync(process.execPath, args, {
+      stdio: 'pipe',
+      env: { ...process.env, ANTHROPIC_API_KEY: apiKey },
+      timeout: 5 * TIMEOUTS.claude,
+    }).toString();
+  } catch (e) {
+    stdout = (e.stdout || '').toString();
+    execError = e;
+  }
+  const result = readTaskResult(outputJsonPath);
+  return { stdout, result, outputJsonPath, execError };
 }
 
 async function sendPublicationNotification(site, title, theme, url) {
@@ -304,17 +321,16 @@ async function main() {
     }
 
     console.log(`  -> [${site}] "${keyword}" (${task.action})`);
-    const output = runArticle(site, keyword, flags, apiKey);
-    const stdout = output.toString();
+    const { stdout, result, outputJsonPath, execError } = runArticle(site, keyword, flags, apiKey, task.id);
+    if (execError && !result) { throw execError; }
 
     if (isDraftOnly) {
       // ── Draft-only path: store JSON, notify admins ──
-      const draftLine = stdout.split('\n').find((l) => l.startsWith('DRAFT_JSON:'));
-      if (!draftLine) throw new Error('DRAFT_JSON line not found in output');
-
-      let parsedDraft;
-      try { parsedDraft = JSON.parse(draftLine.slice('DRAFT_JSON:'.length)); }
-      catch (parseErr) { throw new Error(`DRAFT_JSON parse failed: ${parseErr.message}`); }
+      // PR 0.3 : read draft from JSON result instead of parsing stdout DRAFT_JSON: line
+      if (!result || !result.draft) {
+        throw new Error(result && result.error ? `Pipeline error: ${result.error.code} — ${result.error.message}` : 'Pipeline result missing draft payload');
+      }
+      const parsedDraft = result.draft;
 
       if (task.publication_id) {
         await saveDraftContent(task.publication_id, parsedDraft);
@@ -367,35 +383,38 @@ async function main() {
       console.log('  + DRAFT saved (not published to Sanity)\n');
     } else {
       // ── Standard path: publish to Sanity ──
-      const urlMatch = stdout.match(/https?:\/\/[^\s]+/);
-
-      await ackTask(task.id, { content_url: urlMatch ? urlMatch[0] : null });
-      if (task.publication_id && urlMatch) {
-        await markPublished(task.publication_id, urlMatch[0]);
+      // PR 0.3 : read from JSON result instead of parsing stdout
+      const contentUrl = result && result.contentUrl ? result.contentUrl : null;
+      await ackTask(task.id, { content_url: contentUrl });
+      if (task.publication_id && contentUrl) {
+        await markPublished(task.publication_id, contentUrl);
       }
 
-      // Tracability: extract sanity doc id + asset id from stdout
       if (task.publication_id) {
         const metaUpdates = {};
-        const docIdMatch = stdout.match(/\+ FR: (article-[a-zA-Z0-9-]+)/);
-        if (docIdMatch) metaUpdates.sanity_doc_id = docIdMatch[1];
-
-        if (heroTmpPath) {
-          const assetMatch = stdout.match(/Image asset: (image-[a-zA-Z0-9-]+)/);
-          if (assetMatch) {
-            metaUpdates.hero_sanity_asset_id = assetMatch[1];
-            metaUpdates.hero_uploaded_at = new Date().toISOString();
-          }
+        if (result && result.sanity && result.sanity.documentId) {
+          metaUpdates.sanity_doc_id = result.sanity.documentId;
         }
-
+        if (heroTmpPath && result && result.heroImage && result.heroImage.sanityAssetId) {
+          metaUpdates.hero_sanity_asset_id = result.heroImage.sanityAssetId;
+          metaUpdates.hero_uploaded_at = new Date().toISOString();
+        }
         if (Object.keys(metaUpdates).length > 0) {
           await updatePublicationMetadata(task.publication_id, metaUpdates);
         }
       }
+      if (!result) {
+        logger.warn(`Pipeline result missing for task ${task.id} — pipeline may have crashed before writing JSON`);
+      } else if (result.status === 'error') {
+        logger.warn(`Pipeline returned error for task ${task.id}: ${result.error && result.error.code} — ${result.error && result.error.message}`);
+      }
 
-      await sendPublicationNotification(site, p.title || keyword, p.theme || keyword, urlMatch ? urlMatch[0] : null);
+      await sendPublicationNotification(site, p.title || keyword, p.theme || keyword, contentUrl);
       console.log('  + OK (published)\n');
     }
+
+    // PR 0.3 : cleanup result JSON
+    try { if (outputJsonPath && fs.existsSync(outputJsonPath)) fs.unlinkSync(outputJsonPath); } catch (_) {}
 
     // Cleanup
     if (heroTmpPath) {
