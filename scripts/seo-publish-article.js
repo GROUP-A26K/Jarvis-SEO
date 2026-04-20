@@ -753,10 +753,10 @@ async function publishToSanity(site, article, lang, persona, geoScore, disclaime
 
 // ─── Main ────────────────────────────────────────────────────
 
-async function main(_outerResult) {
+async function main() {
   const opts = parseArgs();
-  // Task result : partage avec main().catch() via closure
-  const result = _outerResult || createTaskResult({
+  // PR 0.3 : initialize task result, shared with main().catch() via _pipelineResult
+  const result = createTaskResult({
     taskId: opts.taskId,
     site: opts.site,
     keyword: opts.keyword,
