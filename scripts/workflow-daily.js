@@ -148,6 +148,9 @@ async function main() {
 
       const { stdout, result, outputJsonPath, execError } = runArticle(site, keyword, flags, apiKey, `pub-${pub.id}`);
       if (execError && !result) { throw execError; }
+      if (result && result.status === 'error') {
+        throw new Error(`Pipeline error: ${result.error.code} — ${result.error.message}`);
+      }
       if (!dryRun) {
         // PR 0.3 : read from JSON result instead of parsing stdout
         const contentUrl = result && result.contentUrl ? result.contentUrl : null;
@@ -318,6 +321,9 @@ async function main() {
 
       const { stdout, result, outputJsonPath, execError } = runArticle(site, keyword, flags, apiKey, task.id);
       if (execError && !result) { throw execError; }
+      if (result && result.status === 'error' && !isDraftOnly) {
+        throw new Error(`Pipeline error: ${result.error.code} — ${result.error.message}`);
+      }
 
       if (!dryRun && isDraftOnly) {
         // ── Draft-only path: store JSON locally, notify admins ──

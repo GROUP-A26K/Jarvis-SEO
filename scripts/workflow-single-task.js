@@ -323,6 +323,9 @@ async function main() {
     console.log(`  -> [${site}] "${keyword}" (${task.action})`);
     const { stdout, result, outputJsonPath, execError } = runArticle(site, keyword, flags, apiKey, task.id);
     if (execError && !result) { throw execError; }
+    if (result && result.status === 'error' && !isDraftOnly) {
+      throw new Error(`Pipeline error: ${result.error.code} — ${result.error.message}`);
+    }
 
     if (isDraftOnly) {
       // ── Draft-only path: store JSON, notify admins ──
