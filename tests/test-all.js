@@ -662,11 +662,31 @@ test('workflow-daily.js no longer calls publishToSanity directly', () => {
 });
 test('workflow-single-task.js no longer calls publishToSanity directly in publish_draft', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
-  // The only remaining await publishToSanity( should be inside... wait, is there still one?
-  // After this refactor, generate_article non-draft path still calls publishToSanity via the pipeline,
-  // but NOT directly. The only "await publishToSanity(" in single-task was in publish_draft.
-  // So after step 4, there should be none left.
   assert(!src.includes('await publishToSanity('), 'workflow-single-task should not call publishToSanity directly');
+});
+test('task-handlers exports handleGenerateArticle', () => {
+  const h = require('../scripts/handlers/task-handlers');
+  assertEqual(typeof h.handleGenerateArticle, 'function');
+});
+test('workflow-daily.js delegates generate_article to handler', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  assert(src.includes('handleGenerateArticle(task,'), 'workflow-daily should call handleGenerateArticle');
+});
+test('workflow-single-task.js delegates generate_article to handler', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
+  assert(src.includes('handleGenerateArticle(task,'), 'workflow-single-task should call handleGenerateArticle');
+});
+test('workflow-daily.js no longer imports sanitize/validateArticleInput', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  // These were removed when generate_article was extracted
+  assert(!src.match(/sanitize[^a-zA-Z]/), 'workflow-daily should not need sanitize anymore');
+  assert(!src.includes('validateArticleInput'), 'workflow-daily should not need validateArticleInput anymore');
+});
+test('workflow-single-task.js no longer imports path/fs/SCRIPTS_DIR at top', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
+  assert(!src.includes("require('path')"), 'workflow-single-task should not need path at top');
+  assert(!src.includes("require('fs')"), 'workflow-single-task should not need fs at top');
+  assert(!src.includes('const SCRIPTS_DIR ='), 'workflow-single-task should not define SCRIPTS_DIR anymore');
 });
 
 // ═══════════════════════════════════════════════════════════════

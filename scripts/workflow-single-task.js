@@ -13,13 +13,13 @@
 const sentry = require('./lib/sentry');
 sentry.init({ script: 'workflow-single-task' });
 
-const path = require('path');
-const fs = require('fs');
+
 const {
-  logger, requireAnthropicKey, sendEmail, esc,
-  validateArticleInput, sanitize,
+  logger, requireAnthropicKey, sendEmail,
 } = require('./seo-shared');
-const { runArticle, sendPublicationNotification, handleRegenerateExhibit, handlePublishDraft } = require('./handlers/task-handlers');
+const {
+  handleRegenerateExhibit, handlePublishDraft, handleGenerateArticle,
+} = require('./handlers/task-handlers');
 const {
   getClient,
   ackTask, failTask,
@@ -29,7 +29,7 @@ const {
 } = require('./calendar-connector');
 const { publishToSanity, uploadImageToSanity } = require('./seo-publish-article');
 
-const SCRIPTS_DIR = __dirname;
+
 
 // ─── Parse --task-id from CLI args ───────────────────────────
 
@@ -115,143 +115,16 @@ async function main() {
     }
 
     // ── generate_article / other actions ──
-    const p = task.payload || {};
-    const site = (p.site || '').replace(/^https?:\/\//, '').replace(/\/+$/, '');
-    const keyword = sanitize(p.theme || p.title || 'article').replace(/[\n\r]+/g, ' ');
-    if (!site) throw new Error('Payload sans site');
-
-    const inputErrors = validateArticleInput({ site, keyword });
-    if (inputErrors.length > 0) throw new Error(`Input invalide: ${inputErrors.join(', ')}`);
-
-    const isDraftOnly = task.action === 'generate_article';
-    const flags = isDraftOnly ? ['--draft-only', '--force'] : ['--force'];
-
-    // Hero image: read hero_image_path from the associated publication
-    let heroTmpPath = null;
-    let taskWebsiteId = null;
-    if (task.publication_id) {
-      const { data: pubData } = await getClient()
-        .from('publications')
-        .select('hero_image_path, website_id')
-        .eq('id', task.publication_id)
-        .single();
-
-      if (pubData?.hero_image_path) {
-        try {
-          heroTmpPath = await downloadHeroImage(pubData.hero_image_path);
-          flags.push('--image-path', heroTmpPath);
-          console.log(`  (hero image: ${pubData.hero_image_path})`);
-        } catch (imgErr) {
-          logger.warn(`Hero image download failed for task ${task.id}: ${imgErr.message} — will use default`);
-        }
-      }
-
-      taskWebsiteId = pubData?.website_id || null;
-    }
-
-    console.log(`  -> [${site}] "${keyword}" (${task.action})`);
-    const { stdout, result, outputJsonPath, execError } = runArticle(site, keyword, flags, apiKey, task.id);
-    if (execError && !result) { throw execError; }
-    if (result && result.status === 'error' && !isDraftOnly) {
-      throw new Error(`Pipeline error: ${result.error.code} — ${result.error.message}`);
-    }
-
-    if (isDraftOnly) {
-      // ── Draft-only path: store JSON, notify admins ──
-      // PR 0.3 : read draft from JSON result instead of parsing stdout DRAFT_JSON: line
-      if (!result || !result.draft) {
-        throw new Error(result && result.error ? `Pipeline error: ${result.error.code} — ${result.error.message}` : 'Pipeline result missing draft payload');
-      }
-      const parsedDraft = result.draft;
-
-      if (task.publication_id) {
-        await saveDraftContent(task.publication_id, parsedDraft);
-      }
-
-      // Upload exhibit PNGs to Supabase Storage and update draft_content with paths
-      if (task.publication_id && parsedDraft.exhibits && parsedDraft.exhibits.length > 0) {
-        try {
-          const exhibitPaths = [];
-          const exhibitsDir = path.join(SCRIPTS_DIR, '..', 'images', 'exhibits');
-          for (const ex of parsedDraft.exhibits) {
-            const pngFiles = fs.readdirSync(exhibitsDir).filter(f => f.includes(`-${ex.exhibitNumber}`) && f.endsWith('-source.png'));
-            if (pngFiles.length > 0) {
-              const localPath = path.join(exhibitsDir, pngFiles[0]);
-              const storagePath = await uploadExhibitToStorage(task.publication_id, ex.exhibitNumber, localPath);
-              exhibitPaths.push({ ...ex, storagePath });
-            }
-          }
-          if (exhibitPaths.length > 0) {
-            const updatedDraft = { ...parsedDraft, exhibits: exhibitPaths };
-            await saveDraftContent(task.publication_id, updatedDraft);
-            console.log(`  + ${exhibitPaths.length} exhibit(s) uploaded to Storage`);
-          }
-        } catch (exErr) {
-          logger.warn(`Exhibit upload to Storage failed: ${exErr.message}`);
-        }
-      }
-
-      await ackTask(task.id, { draft: true, title: parsedDraft.title });
-
-      // Notify site admins/super_admins
-      if (taskWebsiteId) {
-        try {
-          const adminIds = await fetchSiteAdmins(taskWebsiteId);
-          for (const adminId of adminIds) {
-            await createNotification(
-              adminId,
-              'draft_ready',
-              `Brouillon prêt : ${parsedDraft.title || keyword}`,
-              `L'article "${parsedDraft.title || keyword}" pour ${site} est prêt à relire.`,
-              task.publication_id,
-            );
-          }
-          logger.info(`Notified ${adminIds.length} admin(s) for draft on ${site}`);
-        } catch (notifErr) {
-          logger.warn(`Admin notification failed: ${notifErr.message}`);
-        }
-      }
-
-      console.log('  + DRAFT saved (not published to Sanity)\n');
-    } else {
-      // ── Standard path: publish to Sanity ──
-      // PR 0.3 : read from JSON result instead of parsing stdout
-      const contentUrl = result && result.contentUrl ? result.contentUrl : null;
-      await ackTask(task.id, { content_url: contentUrl });
-      if (task.publication_id && contentUrl) {
-        await markPublished(task.publication_id, contentUrl);
-      }
-
-      if (task.publication_id) {
-        const metaUpdates = {};
-        if (result && result.sanity && result.sanity.documentId) {
-          metaUpdates.sanity_doc_id = result.sanity.documentId;
-        }
-        if (heroTmpPath && result && result.heroImage && result.heroImage.sanityAssetId) {
-          metaUpdates.hero_sanity_asset_id = result.heroImage.sanityAssetId;
-          metaUpdates.hero_uploaded_at = new Date().toISOString();
-        }
-        if (Object.keys(metaUpdates).length > 0) {
-          await updatePublicationMetadata(task.publication_id, metaUpdates);
-        }
-      }
-      if (!result) {
-        logger.warn(`Pipeline result missing for task ${task.id} — pipeline may have crashed before writing JSON`);
-      } else if (result.status === 'error') {
-        logger.warn(`Pipeline returned error for task ${task.id}: ${result.error && result.error.code} — ${result.error && result.error.message}`);
-      }
-
-      await sendPublicationNotification(site, p.title || keyword, p.theme || keyword, contentUrl);
-      console.log('  + OK (published)\n');
-    }
-
-    // PR 0.3 : cleanup result JSON
-    try { if (outputJsonPath && fs.existsSync(outputJsonPath)) fs.unlinkSync(outputJsonPath); } catch (_) {}
-
-    // Cleanup
-    if (heroTmpPath) {
-      try { fs.unlinkSync(heroTmpPath); } catch (_) {}
-    }
+    await handleGenerateArticle(task, {
+      apiKey, dryRun: false,
+      logPrefix: '  ', trailingNewline: true,
+      uploadExhibitsToStorage: true,
+      announceTask: true,
+      logPublishedOk: true, logGenericOk: false,
+      client: getClient(), ackTask, downloadHeroImage, markPublished,
+      updatePublicationMetadata, saveDraftContent, createNotification,
+      fetchSiteAdmins, uploadExhibitToStorage,
+    });
   } catch (e) {
     logger.error(`Task ${taskId} failed: ${e.message.slice(0, 200)}`);
     await failTask(taskId, e.message.slice(0, 500));

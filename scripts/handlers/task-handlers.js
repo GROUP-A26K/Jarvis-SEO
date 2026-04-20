@@ -18,6 +18,7 @@ const {
 
 const fs = require('fs');
 
+// (SCRIPTS_DIR defined below, used by runArticle + handleGenerateArticle)
 const SCRIPTS_DIR = path.resolve(__dirname, '..');
 
 // ─── runArticle ──────────────────────────────────────────────
@@ -339,6 +340,192 @@ async function handlePublishDraft(task, ctx) {
   return 'published';
 }
 
+// ─── handleGenerateArticle ───────────────────────────────────
+/**
+ * Handle a generate_article / other-action task that runs the full SEO
+ * pipeline. Supports two modes:
+ *   - draft-only (task.action === 'generate_article'): pipeline runs with
+ *     --draft-only, result.draft is saved to Supabase, admins notified.
+ *   - publish (other actions): pipeline publishes to Sanity; metadata
+ *     updated on publications row; notification email sent.
+ *
+ * Called by both workflow-daily.js (cron task loop) and
+ * workflow-single-task.js (on-demand dispatcher).
+ *
+ * Divergences between the two call-sites are modeled via ctx:
+ *   - dryRun: daily may be in dry-run (skip side-effects); single never
+ *   - logPrefix, trailingNewline: log formatting
+ *   - uploadExhibitsToStorage: present in single-task draft path only;
+ *     absent in daily to preserve existing behavior. Known divergence
+ *     tracked as a pre-existing quirk (to be addressed in a future PR).
+ *
+ * @param {object} task - jarvis_tasks row
+ * @param {object} ctx - {
+ *     apiKey, dryRun, logPrefix, trailingNewline, uploadExhibitsToStorage,
+ *     announceTask: boolean,       // single-task logs "-> [site] kw (action)"
+ *     client, ackTask, downloadHeroImage, markPublished,
+ *     updatePublicationMetadata, saveDraftContent, createNotification,
+ *     fetchSiteAdmins, uploadExhibitToStorage,
+ *   }
+ * @returns {'tasks'|'failed'} — daily uses to increment results.tasks/failed;
+ *          single-task ignores the return value (catch-englobing handles
+ *          failures). Non-throwing path only returns 'tasks'.
+ * @throws on unexpected runtime errors
+ */
+async function handleGenerateArticle(task, ctx) {
+  const prefix = ctx.logPrefix || '  ';
+  const tail = ctx.trailingNewline ? '\n' : '';
+
+  const p = task.payload || {};
+  const site = (p.site || '').replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  const keyword = sanitize(p.theme || p.title || 'article').replace(/[\n\r]+/g, ' ');
+  if (!site) throw new Error('Payload sans site');
+
+  const inputErrors = validateArticleInput({ site, keyword });
+  if (inputErrors.length > 0) throw new Error(`Input invalide: ${inputErrors.join(', ')}`);
+
+  // generate_article tasks use --draft-only (store locally, no Sanity publish)
+  const isDraftOnly = task.action === 'generate_article';
+  const flags = ctx.dryRun
+    ? ['--dry-run']
+    : (isDraftOnly ? ['--draft-only', '--force'] : ['--force']);
+
+  // Hero image: read hero_image_path from the associated publication
+  let heroTmpPath = null;
+  let taskWebsiteId = null;
+  if (task.publication_id) {
+    const { data: pubData } = await ctx.client
+      .from('publications')
+      .select('hero_image_path, website_id')
+      .eq('id', task.publication_id)
+      .single();
+
+    if (pubData?.hero_image_path) {
+      try {
+        heroTmpPath = await ctx.downloadHeroImage(pubData.hero_image_path);
+        flags.push('--image-path', heroTmpPath);
+        console.log(`${prefix}(hero image: ${pubData.hero_image_path})`);
+      } catch (imgErr) {
+        logger.warn(`Hero image download failed for task ${task.id}: ${imgErr.message} — will use default`);
+      }
+    }
+
+    taskWebsiteId = pubData?.website_id || null;
+  }
+
+  if (ctx.announceTask) {
+    console.log(`${prefix}-> [${site}] "${keyword}" (${task.action})`);
+  }
+
+  const { stdout, result, outputJsonPath, execError } = runArticle(site, keyword, flags, ctx.apiKey, task.id);
+  if (execError && !result) { throw execError; }
+  if (result && result.status === 'error' && !isDraftOnly) {
+    throw new Error(`Pipeline error: ${result.error.code} — ${result.error.message}`);
+  }
+
+  if (!ctx.dryRun && isDraftOnly) {
+    // ── Draft-only path: store JSON locally, notify admins ──
+    // PR 0.3 : read draft from JSON result instead of parsing stdout DRAFT_JSON: line
+    if (!result || !result.draft) {
+      throw new Error(result && result.error ? `Pipeline error: ${result.error.code} — ${result.error.message}` : 'Pipeline result missing draft payload');
+    }
+    const parsedDraft = result.draft;
+
+    if (task.publication_id) {
+      await ctx.saveDraftContent(task.publication_id, parsedDraft);
+    }
+
+    // Upload exhibit PNGs to Supabase Storage and update draft_content with paths.
+    // NOTE: this branch runs only when ctx.uploadExhibitsToStorage is true —
+    // currently used by workflow-single-task.js only. workflow-daily.js does
+    // not enable it; preserving the pre-PR-0.4 divergence.
+    if (ctx.uploadExhibitsToStorage && task.publication_id && parsedDraft.exhibits && parsedDraft.exhibits.length > 0) {
+      try {
+        const exhibitPaths = [];
+        const exhibitsDir = path.join(SCRIPTS_DIR, '..', 'images', 'exhibits');
+        for (const ex of parsedDraft.exhibits) {
+          const pngFiles = fs.readdirSync(exhibitsDir).filter(f => f.includes(`-${ex.exhibitNumber}`) && f.endsWith('-source.png'));
+          if (pngFiles.length > 0) {
+            const localPath = path.join(exhibitsDir, pngFiles[0]);
+            const storagePath = await ctx.uploadExhibitToStorage(task.publication_id, ex.exhibitNumber, localPath);
+            exhibitPaths.push({ ...ex, storagePath });
+          }
+        }
+        if (exhibitPaths.length > 0) {
+          const updatedDraft = { ...parsedDraft, exhibits: exhibitPaths };
+          await ctx.saveDraftContent(task.publication_id, updatedDraft);
+          console.log(`${prefix}+ ${exhibitPaths.length} exhibit(s) uploaded to Storage`);
+        }
+      } catch (exErr) {
+        logger.warn(`Exhibit upload to Storage failed: ${exErr.message}`);
+      }
+    }
+
+    await ctx.ackTask(task.id, { draft: true, title: parsedDraft.title });
+
+    // Notify site admins/super_admins
+    if (taskWebsiteId) {
+      try {
+        const adminIds = await ctx.fetchSiteAdmins(taskWebsiteId);
+        for (const adminId of adminIds) {
+          await ctx.createNotification(
+            adminId,
+            'draft_ready',
+            `Brouillon prêt : ${parsedDraft.title || keyword}`,
+            `L'article "${parsedDraft.title || keyword}" pour ${site} est prêt à relire.`,
+            task.publication_id,
+          );
+        }
+        logger.info(`Notified ${adminIds.length} admin(s) for draft on ${site}`);
+      } catch (notifErr) {
+        logger.warn(`Admin notification failed: ${notifErr.message}`);
+      }
+    }
+
+    console.log(`${prefix}+ DRAFT saved (not published to Sanity)${tail}`);
+  } else if (!ctx.dryRun) {
+    // ── Standard path: publish to Sanity ──
+    // PR 0.3 : read from JSON result instead of parsing stdout
+    const contentUrl = result && result.contentUrl ? result.contentUrl : null;
+    await ctx.ackTask(task.id, { content_url: contentUrl });
+    if (task.publication_id && contentUrl) {
+      await ctx.markPublished(task.publication_id, contentUrl);
+    }
+
+    if (task.publication_id) {
+      const metaUpdates = {};
+      if (result && result.sanity && result.sanity.documentId) {
+        metaUpdates.sanity_doc_id = result.sanity.documentId;
+      }
+      if (heroTmpPath && result && result.heroImage && result.heroImage.sanityAssetId) {
+        metaUpdates.hero_sanity_asset_id = result.heroImage.sanityAssetId;
+        metaUpdates.hero_uploaded_at = new Date().toISOString();
+      }
+      if (Object.keys(metaUpdates).length > 0) {
+        await ctx.updatePublicationMetadata(task.publication_id, metaUpdates);
+      }
+    }
+    if (!result) {
+      logger.warn(`Pipeline result missing for task ${task.id} — pipeline may have crashed before writing JSON`);
+    } else if (result.status === 'error') {
+      logger.warn(`Pipeline returned error for task ${task.id}: ${result.error && result.error.code} — ${result.error && result.error.message}`);
+    }
+
+    await sendPublicationNotification(site, p.title || keyword, p.theme || keyword, contentUrl);
+    if (ctx.logPublishedOk) console.log(`${prefix}+ OK (published)${tail}`);
+  }
+  // PR 0.3 : cleanup result JSON
+  try { if (outputJsonPath && fs.existsSync(outputJsonPath)) fs.unlinkSync(outputJsonPath); } catch (_) {}
+
+  // Cleanup
+  if (heroTmpPath) {
+    try { fs.unlinkSync(heroTmpPath); } catch (_) {}
+  }
+
+  if (ctx.logGenericOk) console.log(`${prefix}+ OK`);
+  return 'tasks';
+}
+
 // ─── Exports ─────────────────────────────────────────────────
 module.exports = {
   runArticle,
@@ -346,4 +533,5 @@ module.exports = {
   handleRegenerateExhibit,
   handleScheduledPublication,
   handlePublishDraft,
+  handleGenerateArticle,
 };
