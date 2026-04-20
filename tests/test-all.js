@@ -643,6 +643,31 @@ test('workflow-daily.js no longer calls runArticle directly in pub loop', () => 
   const pubLoopBody = src.slice(pubLoopStart, taskLoopStart > -1 ? taskLoopStart : src.length);
   assert(!pubLoopBody.includes('runArticle('), 'pub loop should delegate to handler (no direct runArticle call)');
 });
+test('task-handlers exports handlePublishDraft', () => {
+  const h = require('../scripts/handlers/task-handlers');
+  assertEqual(typeof h.handlePublishDraft, 'function');
+});
+test('workflow-daily.js delegates publish_draft to handler', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  assert(src.includes('handlePublishDraft(task,'), 'workflow-daily should call handlePublishDraft');
+});
+test('workflow-single-task.js delegates publish_draft to handler', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
+  assert(src.includes('handlePublishDraft(task,'), 'workflow-single-task should call handlePublishDraft');
+});
+test('workflow-daily.js no longer calls publishToSanity directly', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  // publishToSanity should only appear in the import line now; check no direct await call
+  assert(!src.includes('await publishToSanity('), 'workflow-daily should not call publishToSanity directly');
+});
+test('workflow-single-task.js no longer calls publishToSanity directly in publish_draft', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
+  // The only remaining await publishToSanity( should be inside... wait, is there still one?
+  // After this refactor, generate_article non-draft path still calls publishToSanity via the pipeline,
+  // but NOT directly. The only "await publishToSanity(" in single-task was in publish_draft.
+  // So after step 4, there should be none left.
+  assert(!src.includes('await publishToSanity('), 'workflow-single-task should not call publishToSanity directly');
+});
 
 // ═══════════════════════════════════════════════════════════════
 // Results

@@ -231,10 +231,119 @@ async function handleScheduledPublication(pub, ctx) {
   return 'published';
 }
 
+// ─── handlePublishDraft ──────────────────────────────────────
+/**
+ * Publish an existing draft_content row to Sanity (action: 'publish_draft').
+ * Called by both workflows: daily batch (with dryRun possible) and single-task.
+ *
+ * Behavior:
+ * - dryRun: log skip, return 'published' (treated as a simulated success).
+ * - Otherwise: fetch publication, validate draft_content, upload optional hero
+ *   image to Sanity, publish via publishToSanity, update publications row,
+ *   ack task, notify admins, send email. Returns 'published'.
+ * - Throws on any unexpected error (caller catches and increments failed).
+ *
+ * @param {object} task - jarvis_tasks row (needs id, publication_id, action)
+ * @param {object} ctx - {
+ *     dryRun: boolean,           // if true, log skip and return 'published' immediately
+ *     logPrefix: string,         // log indent (e.g. '     ' for daily, '  ' for single)
+ *     trailingNewline: boolean,  // true for single-task style "+ OK (published)\n"
+ *     client, ackTask, downloadHeroImage, uploadImageToSanity, publishToSanity,
+ *     fetchSiteAdmins, createNotification,
+ *   }
+ * @returns {'published'} — caller increments results.tasks or returns normally
+ * @throws on unexpected runtime errors
+ */
+async function handlePublishDraft(task, ctx) {
+  const prefix = ctx.logPrefix || '  ';
+  const tail = ctx.trailingNewline ? '\n' : '';
+
+  if (!task.publication_id) throw new Error('publish_draft requires publication_id');
+  if (ctx.dryRun) {
+    console.log(`${prefix}[DRY-RUN] skip publish_draft`);
+    return 'published';
+  }
+
+  const { data: pubRow, error: pubErr } = await ctx.client
+    .from('publications')
+    .select('draft_content, hero_image_path, metadata, website_id, websites(domain, sanity_document_type)')
+    .eq('id', task.publication_id)
+    .single();
+  if (pubErr) throw new Error(`Fetch publication: ${pubErr.message}`);
+  if (!pubRow?.draft_content) throw new Error('No draft_content on publication');
+
+  const draft = pubRow.draft_content;
+  if (!draft.title || !draft.slug || !Array.isArray(draft.sections)) {
+    throw new Error('draft_content is malformed: missing title, slug, or sections');
+  }
+  const site = pubRow.websites?.domain;
+  if (!site) throw new Error('Publication has no site domain');
+
+  // Build article object from draft
+  const article = {
+    title: draft.title, slug: draft.slug, summary: draft.summary || draft.metaDescription,
+    metaTitle: draft.metaTitle || draft.title, metaDescription: draft.metaDescription || draft.summary,
+    sections: draft.sections || [], faq: draft.faq || [],
+    citableExtracts: draft.citableExtracts || [], sourceUrls: draft.sourceUrls || [],
+  };
+  const persona = draft.persona || 'default';
+  const disclaimer = draft.disclaimer || '';
+
+  // Hero image: download from Storage, upload to Sanity
+  let imageAssetId = null;
+  let heroTmpPath = null;
+  if (pubRow.hero_image_path) {
+    try {
+      heroTmpPath = await ctx.downloadHeroImage(pubRow.hero_image_path);
+      imageAssetId = await ctx.uploadImageToSanity(heroTmpPath);
+      console.log(`${prefix}+ Hero image uploaded: ${imageAssetId}`);
+    } catch (imgErr) {
+      logger.warn(`Hero image upload failed: ${imgErr.message} — default image will be used`);
+    }
+  }
+
+  // Publish to Sanity
+  const geoScore = { total: 0, status: 'unknown' };
+  const keyword = draft.title || '';
+  const resFR = await ctx.publishToSanity(site, article, 'fr', persona, geoScore, disclaimer, imageAssetId, null, [], keyword);
+  console.log(`${prefix}+ Published to Sanity: ${resFR.docId}`);
+
+  // Update publication
+  const contentUrl = `https://${site}/${article.slug}`;
+  const metaUpdates = { ...(pubRow.metadata || {}), sanity_doc_id: resFR.docId };
+  if (imageAssetId) {
+    metaUpdates.hero_sanity_asset_id = imageAssetId;
+    metaUpdates.hero_uploaded_at = new Date().toISOString();
+  }
+  await ctx.client
+    .from('publications')
+    .update({ status: 'published', content_url: contentUrl, metadata: metaUpdates, draft_content: null })
+    .eq('id', task.publication_id);
+
+  await ctx.ackTask(task.id, { content_url: contentUrl, sanity_doc_id: resFR.docId });
+
+  // Notify admins
+  try {
+    const adminIds = await ctx.fetchSiteAdmins(pubRow.website_id);
+    for (const adminId of adminIds) {
+      await ctx.createNotification(adminId, 'article_published', `Article publie : ${article.title}`, `L'article "${article.title}" a ete publie sur ${site}.`, task.publication_id);
+    }
+  } catch (notifErr) { logger.warn(`Publish notification failed: ${notifErr.message}`); }
+
+  await sendPublicationNotification(site, article.title, '', contentUrl);
+
+  // Cleanup
+  if (heroTmpPath) { try { fs.unlinkSync(heroTmpPath); } catch (_) {} }
+
+  console.log(`${prefix}+ OK (published)${tail}`);
+  return 'published';
+}
+
 // ─── Exports ─────────────────────────────────────────────────
 module.exports = {
   runArticle,
   sendPublicationNotification,
   handleRegenerateExhibit,
   handleScheduledPublication,
+  handlePublishDraft,
 };
