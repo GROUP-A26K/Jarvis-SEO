@@ -689,6 +689,39 @@ test('workflow-single-task.js no longer imports path/fs/SCRIPTS_DIR at top', () 
   assert(!src.includes('const SCRIPTS_DIR ='), 'workflow-single-task should not define SCRIPTS_DIR anymore');
 });
 
+suite('PR 0.4 — task-handlers module surface (final)');
+test('exports exactly the 6 expected symbols', () => {
+  const h = require('../scripts/handlers/task-handlers');
+  const keys = Object.keys(h).sort().join(',');
+  assertEqual(keys, 'handleGenerateArticle,handlePublishDraft,handleRegenerateExhibit,handleScheduledPublication,runArticle,sendPublicationNotification');
+});
+test('all 4 handlers are async functions', () => {
+  const h = require('../scripts/handlers/task-handlers');
+  for (const name of ['handleGenerateArticle', 'handlePublishDraft', 'handleRegenerateExhibit', 'handleScheduledPublication']) {
+    assertEqual(h[name].constructor.name, 'AsyncFunction', `${name} should be AsyncFunction`);
+  }
+});
+test('sendPublicationNotification is async, runArticle is sync', () => {
+  const h = require('../scripts/handlers/task-handlers');
+  assertEqual(h.sendPublicationNotification.constructor.name, 'AsyncFunction');
+  assertEqual(h.runArticle.constructor.name, 'Function', 'runArticle uses execFileSync, should be sync');
+});
+test('workflow-daily.js final line count <= 160 (dispatcher size sanity)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  const lineCount = src.split('\n').length;
+  assert(lineCount <= 160, `workflow-daily.js should be <= 160 lines post-PR-0.4, got ${lineCount}`);
+});
+test('workflow-single-task.js final line count <= 160 (dispatcher size sanity)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
+  const lineCount = src.split('\n').length;
+  assert(lineCount <= 160, `workflow-single-task.js should be <= 160 lines post-PR-0.4, got ${lineCount}`);
+});
+test('scripts/handlers/README.md documents the layer', () => {
+  const readme = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'handlers', 'README.md'), 'utf-8');
+  assert(readme.includes('lib/'), 'README should reference lib/');
+  assert(readme.includes('task-handlers'), 'README should reference task-handlers');
+});
+
 // ═══════════════════════════════════════════════════════════════
 // Results
 // ═══════════════════════════════════════════════════════════════
