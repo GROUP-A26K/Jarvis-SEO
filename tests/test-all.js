@@ -672,6 +672,14 @@ test('workflow-daily.js delegates generate_article to handler', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
   assert(src.includes('handleGenerateArticle(task,'), 'workflow-daily should call handleGenerateArticle');
 });
+test('handlers/task-handlers.js handlePublishDraft builds content_url with /blog/ prefix and strips language prefix', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'handlers', 'task-handlers.js'), 'utf-8');
+  assert(src.includes("const contentUrl = `https://${site}/blog/${article.slug.replace(/^(fr|en)-/, '')}`"), 'handlePublishDraft should build contentUrl with /blog/ and strip fr-/en- prefix');
+});
+test('handlers/task-handlers.js no longer builds bare https://site/slug URLs', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'handlers', 'task-handlers.js'), 'utf-8');
+  assert(!src.includes("`https://${site}/${article.slug}`"), 'task-handlers should not use the bare site/slug formula anymore — must include /blog/ and strip language prefix');
+});
 test('workflow-daily.js imports uploadExhibitToStorage from calendar-connector', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
   assert(src.includes('uploadExhibitToStorage'), 'workflow-daily should import uploadExhibitToStorage from calendar-connector (parity with single-task)');
