@@ -13,7 +13,10 @@ const { execFileSync } = require('child_process');
 const {
   logger, sendEmail, esc, TIMEOUTS, readTaskResult,
   requireAnthropicKey, getSiteConfig,
+  sanitize, validateArticleInput,
 } = require('../seo-shared');
+
+const fs = require('fs');
 
 const SCRIPTS_DIR = path.resolve(__dirname, '..');
 
@@ -142,9 +145,96 @@ async function handleRegenerateExhibit(task, ctx) {
   console.log(`  + Exhibit ${exhibitNumber} regenerated and uploaded\n`);
 }
 
+// ─── handleScheduledPublication ──────────────────────────────
+/**
+ * Handle a scheduled publication from the daily cron.
+ * Runs the SEO pipeline for one publication row, updates Supabase metadata
+ * on success, sends a notification email. Pre-check failures log a warning
+ * and return 'skipped'; unexpected runtime errors throw (caller catches).
+ *
+ * Used by: workflow-daily.js (daily cron batch — not invoked by on-demand).
+ *
+ * @param {object} pub - publications row (needs id, domain, theme, title, hero_image_path)
+ * @param {object} ctx - { apiKey, dryRun, downloadHeroImage, markPublished,
+ *                         updatePublicationMetadata }
+ * @returns {'published'|'skipped'} — caller counts results.published++/failed++ accordingly
+ * @throws on unexpected runtime errors (pipeline crash, Supabase failure, etc.)
+ */
+async function handleScheduledPublication(pub, ctx) {
+  const keyword = sanitize(pub.theme || pub.title || 'article').replace(/[\n\r]+/g, ' ');
+  const site = pub.domain;
+  if (!site) {
+    logger.warn(`Publication ${pub.id}: pas de domain, skip`);
+    return 'skipped';
+  }
+
+  const inputErrors = validateArticleInput({ site, keyword });
+  if (inputErrors.length > 0) {
+    logger.warn(`Publication ${pub.id}: input invalide: ${inputErrors.join(', ')}`);
+    return 'skipped';
+  }
+
+  console.log(`  -> [${site}] "${keyword}"`);
+  const flags = ctx.dryRun ? ['--dry-run'] : ['--force'];
+
+  // Hero image custom : download from Storage if present
+  let heroTmpPath = null;
+  if (pub.hero_image_path) {
+    try {
+      heroTmpPath = await ctx.downloadHeroImage(pub.hero_image_path);
+      flags.push('--image-path', heroTmpPath);
+      console.log(`     (hero image: ${pub.hero_image_path})`);
+    } catch (imgErr) {
+      logger.warn(`Hero image download failed for ${pub.id}: ${imgErr.message} — will use default`);
+    }
+  }
+
+  const { stdout, result, outputJsonPath, execError } = runArticle(site, keyword, flags, ctx.apiKey, `pub-${pub.id}`);
+  if (execError && !result) { throw execError; }
+  if (result && result.status === 'error') {
+    throw new Error(`Pipeline error: ${result.error.code} — ${result.error.message}`);
+  }
+  if (!ctx.dryRun) {
+    // PR 0.3 : read from JSON result instead of parsing stdout
+    const contentUrl = result && result.contentUrl ? result.contentUrl : null;
+    await ctx.markPublished(pub.id, contentUrl);
+
+    const metaUpdates = {};
+    if (result && result.sanity && result.sanity.documentId) {
+      metaUpdates.sanity_doc_id = result.sanity.documentId;
+    }
+    if (heroTmpPath && result && result.heroImage && result.heroImage.sanityAssetId) {
+      metaUpdates.hero_sanity_asset_id = result.heroImage.sanityAssetId;
+      metaUpdates.hero_uploaded_at = new Date().toISOString();
+    }
+    if (!result) {
+      logger.warn(`Pipeline result missing for pub ${pub.id} — pipeline may have crashed before writing JSON`);
+    } else if (result.status === 'error') {
+      logger.warn(`Pipeline returned error for pub ${pub.id}: ${result.error && result.error.code} — ${result.error && result.error.message}`);
+    }
+
+    if (Object.keys(metaUpdates).length > 0) {
+      await ctx.updatePublicationMetadata(pub.id, metaUpdates);
+    }
+
+    await sendPublicationNotification(site, pub.title, pub.theme, contentUrl);
+  }
+  // PR 0.3 : cleanup result JSON
+  try { if (outputJsonPath && fs.existsSync(outputJsonPath)) fs.unlinkSync(outputJsonPath); } catch (_) {}
+
+  // Cleanup temp file
+  if (heroTmpPath) {
+    try { fs.unlinkSync(heroTmpPath); } catch (_) {}
+  }
+
+  console.log(`     + OK`);
+  return 'published';
+}
+
 // ─── Exports ─────────────────────────────────────────────────
 module.exports = {
   runArticle,
   sendPublicationNotification,
   handleRegenerateExhibit,
+  handleScheduledPublication,
 };

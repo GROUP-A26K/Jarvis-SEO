@@ -627,6 +627,22 @@ test('workflow-single-task.js no longer has inline planExhibits require', () => 
   const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
   assert(!src.includes("require('./seo-exhibits')"), 'workflow-single-task should not inline-require ./seo-exhibits anymore');
 });
+test('task-handlers exports handleScheduledPublication', () => {
+  const h = require('../scripts/handlers/task-handlers');
+  assertEqual(typeof h.handleScheduledPublication, 'function');
+});
+test('workflow-daily.js delegates scheduled publications to handler', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  assert(src.includes('handleScheduledPublication(pub,'), 'workflow-daily should call handleScheduledPublication');
+});
+test('workflow-daily.js no longer calls runArticle directly in pub loop', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  const pubLoopStart = src.indexOf('for (const pub of pubs)');
+  assert(pubLoopStart > -1, 'pub loop should exist');
+  const taskLoopStart = src.indexOf('for (const task of tasks)');
+  const pubLoopBody = src.slice(pubLoopStart, taskLoopStart > -1 ? taskLoopStart : src.length);
+  assert(!pubLoopBody.includes('runArticle('), 'pub loop should delegate to handler (no direct runArticle call)');
+});
 
 // ═══════════════════════════════════════════════════════════════
 // Results

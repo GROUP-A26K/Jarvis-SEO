@@ -20,7 +20,7 @@ const {
   logger, requireAnthropicKey, sendEmail, esc,
   validateArticleInput, sanitize,
 } = require('./seo-shared');
-const { runArticle, sendPublicationNotification } = require('./handlers/task-handlers');
+const { runArticle, sendPublicationNotification, handleScheduledPublication } = require('./handlers/task-handlers');
 const fs = require('fs');
 const {
   getClient,
@@ -56,73 +56,13 @@ async function main() {
   console.log(`> ${pubs.length} publication(s) programmee(s) aujourd'hui\n`);
 
   for (const pub of pubs) {
-    const keyword = sanitize(pub.theme || pub.title || 'article').replace(/[\n\r]+/g, ' ');
-    const site = pub.domain;
-    if (!site) { logger.warn(`Publication ${pub.id}: pas de domain, skip`); results.failed++; continue; }
-
-    const inputErrors = validateArticleInput({ site, keyword });
-    if (inputErrors.length > 0) {
-      logger.warn(`Publication ${pub.id}: input invalide: ${inputErrors.join(', ')}`);
-      results.failed++;
-      continue;
-    }
-
-    console.log(`  -> [${site}] "${keyword}"`);
     try {
-      const flags = dryRun ? ['--dry-run'] : ['--force'];
-
-      // Hero image custom : download from Storage if present
-      let heroTmpPath = null;
-      if (pub.hero_image_path) {
-        try {
-          heroTmpPath = await downloadHeroImage(pub.hero_image_path);
-          flags.push('--image-path', heroTmpPath);
-          console.log(`     (hero image: ${pub.hero_image_path})`);
-        } catch (imgErr) {
-          logger.warn(`Hero image download failed for ${pub.id}: ${imgErr.message} — will use default`);
-        }
-      }
-
-      const { stdout, result, outputJsonPath, execError } = runArticle(site, keyword, flags, apiKey, `pub-${pub.id}`);
-      if (execError && !result) { throw execError; }
-      if (result && result.status === 'error') {
-        throw new Error(`Pipeline error: ${result.error.code} — ${result.error.message}`);
-      }
-      if (!dryRun) {
-        // PR 0.3 : read from JSON result instead of parsing stdout
-        const contentUrl = result && result.contentUrl ? result.contentUrl : null;
-        await markPublished(pub.id, contentUrl);
-
-        const metaUpdates = {};
-        if (result && result.sanity && result.sanity.documentId) {
-          metaUpdates.sanity_doc_id = result.sanity.documentId;
-        }
-        if (heroTmpPath && result && result.heroImage && result.heroImage.sanityAssetId) {
-          metaUpdates.hero_sanity_asset_id = result.heroImage.sanityAssetId;
-          metaUpdates.hero_uploaded_at = new Date().toISOString();
-        }
-        if (!result) {
-          logger.warn(`Pipeline result missing for pub ${pub.id} — pipeline may have crashed before writing JSON`);
-        } else if (result.status === 'error') {
-          logger.warn(`Pipeline returned error for pub ${pub.id}: ${result.error && result.error.code} — ${result.error && result.error.message}`);
-        }
-
-        if (Object.keys(metaUpdates).length > 0) {
-          await updatePublicationMetadata(pub.id, metaUpdates);
-        }
-
-        await sendPublicationNotification(site, pub.title, pub.theme, contentUrl);
-      }
-      // PR 0.3 : cleanup result JSON
-      try { if (outputJsonPath && fs.existsSync(outputJsonPath)) fs.unlinkSync(outputJsonPath); } catch (_) {}
-
-      // Cleanup temp file
-      if (heroTmpPath) {
-        try { fs.unlinkSync(heroTmpPath); } catch (_) {}
-      }
-
-      results.published++;
-      console.log(`     + OK`);
+      const outcome = await handleScheduledPublication(pub, {
+        apiKey, dryRun,
+        downloadHeroImage, markPublished, updatePublicationMetadata,
+      });
+      if (outcome === 'published') results.published++;
+      else results.failed++;
     } catch (e) {
       logger.error(`Publication ${pub.id} failed: ${e.message.slice(0, 200)}`);
       results.failed++;
