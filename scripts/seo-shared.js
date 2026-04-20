@@ -94,6 +94,15 @@ const { verifyUrl } = require('./lib/verify');
 const { sendEmail } = require('./lib/email');
 const { validateArticleInput } = require('./lib/validation');
 const { getISOWeek } = require('./lib/helpers');
+const {
+  TASK_RESULT_SCHEMA_VERSION,
+  ERROR_CODES,
+  createTaskResult,
+  writeTaskResult,
+  readTaskResult,
+  finalizeSuccess,
+  finalizeError,
+} = require('./lib/task-result');
 
 // ═══════════════════════════════════════════════════════════════
 // EXPORTS (ordre historique preserve pour faciliter le diff git)
@@ -117,4 +126,8 @@ module.exports = {
   loadTrackedArticles, updateArticleField,
   loadLatestGapAnalysis, loadPipelineState, savePipelineState,
   sendEmail, validateArticleInput, getISOWeek,
+  // PR 0.3 — Task result contract (ajoutes apres les 67 historiques)
+  TASK_RESULT_SCHEMA_VERSION, ERROR_CODES,
+  createTaskResult, writeTaskResult, readTaskResult,
+  finalizeSuccess, finalizeError,
 };

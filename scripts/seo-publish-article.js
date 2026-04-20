@@ -20,6 +20,7 @@ const {
   callClaudeWithRetry, extractClaudeText, verifyUrl,
   httpRequest, readJSONSafe, writeJSONAtomic, withLockedJSON,
   TIMEOUTS, VALID_PERSONAS, sanitizeErrorMessage,
+  createTaskResult, writeTaskResult, finalizeSuccess, finalizeError, ERROR_CODES,
 } = require('./seo-shared');
 
 // Sanity config from sites/config.json _meta
@@ -40,8 +41,8 @@ const JSON_TRACKING_PATH = PATHS.jsonTracking;
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const opts = { dryRun: false, preProd: false, draftOnly: false, force: false, enrich: false, personaAutoSelected: false, imagePath: null, imageAlt: null };
-  for (let i = 0; i < args.length; i++) { switch (args[i]) { case '--site': opts.site = args[++i]; break; case '--keyword': opts.keyword = args[++i]; break; case '--persona': opts.persona = args[++i]; break; case '--image-path': opts.imagePath = args[++i]; break; case '--image-alt': opts.imageAlt = args[++i]; break; case '--dry-run': opts.dryRun = true; break; case '--pre-prod': opts.preProd = true; break; case '--draft-only': opts.draftOnly = true; break; case '--force': opts.force = true; break; case '--enrich': opts.enrich = true; break; } }
+  const opts = { dryRun: false, preProd: false, draftOnly: false, force: false, enrich: false, personaAutoSelected: false, imagePath: null, imageAlt: null, outputJson: null, taskId: null };
+  for (let i = 0; i < args.length; i++) { switch (args[i]) { case '--site': opts.site = args[++i]; break; case '--keyword': opts.keyword = args[++i]; break; case '--persona': opts.persona = args[++i]; break; case '--image-path': opts.imagePath = args[++i]; break; case '--image-alt': opts.imageAlt = args[++i]; break; case '--dry-run': opts.dryRun = true; break; case '--pre-prod': opts.preProd = true; break; case '--draft-only': opts.draftOnly = true; break; case '--force': opts.force = true; break; case '--enrich': opts.enrich = true; break; case '--output-json': opts.outputJson = args[++i]; break; case '--task-id': opts.taskId = args[++i]; break; } }
   if (!opts.site || !opts.keyword) { console.error('Usage: --site <s> --keyword <kw> [--persona <p>] [--image-path <f>] [--image-alt <t>] [--dry-run] [--pre-prod] [--draft-only] [--force] [--enrich]'); process.exit(1); }
   if (!VALID_SITES.includes(opts.site)) { console.error(`Site inconnu: "${opts.site}"`); process.exit(1); }
   if (opts.imagePath) {
@@ -754,6 +755,14 @@ async function publishToSanity(site, article, lang, persona, geoScore, disclaime
 
 async function main() {
   const opts = parseArgs();
+  // PR 0.3 : initialize task result, shared with main().catch() via _pipelineResult
+  const result = createTaskResult({
+    taskId: opts.taskId,
+    site: opts.site,
+    keyword: opts.keyword,
+    mode: opts.draftOnly ? 'draft' : 'publish',
+  });
+  _pipelineResult = result;
   console.log('========================================');
   console.log('  SEO Publisher v5');
   console.log(`  ${opts.site} | "${opts.keyword}" | ${opts.persona}${opts.personaAutoSelected ? ' (auto)' : ''}`);
@@ -761,7 +770,7 @@ async function main() {
   console.log('========================================');
 
   const dup = checkDuplicate(opts.site, opts.keyword);
-  if (dup && !opts.force) { console.error(`\n! DOUBLON: "${opts.keyword}" deja publie. --force pour forcer.`); process.exit(1); }
+  if (dup && !opts.force) { console.error(`\n! DOUBLON: "${opts.keyword}" deja publie. --force pour forcer.`); finalizeError(result, { code: ERROR_CODES.DUPLICATE_KEYWORD, message: `Duplicate keyword: ${opts.keyword}`, stage: 'init', retryable: false }); writeTaskResult(opts.outputJson, result); process.exit(1); }
   if (dup && opts.force) console.log('  ! Doublon, --force actif');
 
   const semrush = loadSecret('semrush');
@@ -985,6 +994,15 @@ ${htmlSections}${faqHtml}
       exhibits: draftExhibits.map(ex => ({ altText: ex.altText, exhibitNumber: ex.exhibitNumber })),
     };
     console.log(`DRAFT_JSON:${JSON.stringify(draftJson)}`);
+    // PR 0.3 : populate result with draft payload (mode: draft)
+    result.draft = draftJson;
+    result.scores = {
+      geo: geoScore ? geoScore.total : null,
+      geoStatus: geoScore ? geoScore.status : null,
+      topicalCoverage: topicalCoverage ? topicalCoverage.score : null,
+    };
+    finalizeSuccess(result);
+    writeTaskResult(opts.outputJson, result);
     console.log(`\n+ DRAFT generated: "${articleFR.title}"`);
     if (db) db.close();
     printUnitsSummary();
@@ -1003,6 +1021,8 @@ ${htmlSections}${faqHtml}
     try {
       imageAssetId = await uploadImageToSanity(opts.imagePath);
       console.log(`  + Image asset: ${imageAssetId}`);
+      // PR 0.3 : track hero image asset in result
+      result.heroImage = { sanityAssetId: imageAssetId, source: 'manual', storagePath: opts.imagePath };
     } catch (err) {
       logger.warn(`Upload image echoue: ${err.message}. Image par defaut utilisee.`);
     }
@@ -1095,6 +1115,19 @@ ${htmlSections}${faqHtml}
     const resFR = await publishToSanity(opts.site, articleFR, 'fr', opts.persona, geoScore, disclaimer, imageAssetId, imageAlt, exhibitAssetIds, opts.keyword);
     console.log(`  + FR: ${resFR.docId}`);
     publishedDocId = resFR.docId;
+    // PR 0.3 : populate result with Sanity doc + contentUrl
+    result.sanity = {
+      documentId: resFR.docId,
+      slug: articleFR.slug,
+      language: 'fr',
+      documentType: getSanityDocType(opts.site),
+    };
+    result.contentUrl = `https://${opts.site}/blog/${articleFR.slug.replace(/^(fr|en)-/, '')}`;
+    result.exhibits = (exhibitAssetIds || []).map((ex, i) => ({
+      number: i + 1,
+      sanityAssetId: ex.assetId,
+      altText: ex.altText || null,
+    }));
   } catch (err) { console.error(`  ! Sanity FR: ${err.message}`); }
   try {
     const resEN = await publishToSanity(opts.site, articleEN, 'en', opts.persona, geoScore, disclaimer, imageAssetId, imageAlt, exhibitAssetIds, opts.keyword);
@@ -1112,10 +1145,37 @@ ${htmlSections}${faqHtml}
   console.log(`  Citations: ${(articleFR.citableExtracts || []).length} | Sources: ${(articleFR.sourceUrls || []).length} | Links: ${links.length}`);
   printUnitsSummary();
   console.log('========================================\n');
+  // PR 0.3 : populate final scores + finalize success + write JSON
+  result.scores = {
+    geo: geoScore.total,
+    geoStatus: geoScore.status,
+    geoVisibility: geoVisibility.visibility,
+    topicalCoverage: topicalCoverage.score,
+  };
+  finalizeSuccess(result);
+  writeTaskResult(opts.outputJson, result);
 }
 
+// PR 0.3 : result partage avec main().catch() pour ecrire l'erreur
+let _pipelineResult = null;
+
 if (require.main === module) {
-  main().catch((err) => sentry.fatal(err));
+  main().catch((err) => {
+    try {
+      if (_pipelineResult) {
+        const code = /circuit/i.test(err.message) ? ERROR_CODES.CLAUDE_CIRCUIT_OPEN
+                   : /sanity/i.test(err.message) ? ERROR_CODES.SANITY_PUBLISH_FAILED
+                   : /semrush/i.test(err.message) ? ERROR_CODES.SEMRUSH_API_FAILED
+                   : ERROR_CODES.UNKNOWN;
+        finalizeError(_pipelineResult, { code, message: err.message, stage: 'pipeline', retryable: false });
+        // opts.outputJson may not be reachable here; fallback via argv parse
+        const idx = process.argv.indexOf('--output-json');
+        const outPath = idx !== -1 ? process.argv[idx + 1] : null;
+        writeTaskResult(outPath, _pipelineResult);
+      }
+    } catch (_) { /* never block sentry.fatal */ }
+    sentry.fatal(err);
+  });
 }
 
 module.exports = { publishToSanity, uploadImageToSanity, buildSanityBody, generateDisclaimer };
