@@ -471,6 +471,116 @@ try {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// lib/task-result.js (PR 0.3 — JSON output contract)
+// ═══════════════════════════════════════════════════════════════
+suite('Task Result — createTaskResult');
+test('initializes with status pending and schema version', () => {
+  const r = shared.createTaskResult({ taskId: 't1', site: 'ag.ch', keyword: 'k' });
+  assertEqual(r.status, 'pending');
+  assertEqual(r.schemaVersion, shared.TASK_RESULT_SCHEMA_VERSION);
+  assertEqual(r.taskId, 't1');
+  assertEqual(r.site, 'ag.ch');
+  assertEqual(r.keyword, 'k');
+  assertEqual(r.mode, 'publish');
+  assert(r.metadata && r.metadata.startedAt, 'should have startedAt');
+  assertEqual(r.metadata.completedAt, null);
+  assertEqual(r.metadata.durationSeconds, null);
+  assertEqual(r.sanity, null);
+  assertEqual(r.draft, null);
+  assertEqual(r.heroImage, null);
+  assertDeepEqual(r.exhibits, []);
+});
+test('respects mode parameter', () => {
+  const r = shared.createTaskResult({ site: 'x', keyword: 'y', mode: 'draft' });
+  assertEqual(r.mode, 'draft');
+});
+test('works with no params (defaults)', () => {
+  const r = shared.createTaskResult();
+  assertEqual(r.status, 'pending');
+  assertEqual(r.taskId, null);
+  assertEqual(r.site, null);
+});
+
+suite('Task Result — writeTaskResult / readTaskResult');
+const _tmpResultDir = path.join(os.tmpdir(), `jarvis-test-result-${Date.now()}`);
+fs.mkdirSync(_tmpResultDir, { recursive: true });
+test('writeTaskResult writes a valid JSON file', () => {
+  const r = shared.createTaskResult({ site: 'a.ch', keyword: 'k' });
+  r.sanity = { documentId: 'article-x', slug: 'fr-x', language: 'fr', documentType: 'blogPost' };
+  const p = path.join(_tmpResultDir, 'write-ok.json');
+  shared.writeTaskResult(p, r);
+  assert(fs.existsSync(p), 'file should exist after write');
+  const parsed = JSON.parse(fs.readFileSync(p, 'utf-8'));
+  assertEqual(parsed.sanity.documentId, 'article-x');
+});
+test('writeTaskResult with null path is a no-op', () => {
+  const r = shared.createTaskResult({ site: 'a.ch', keyword: 'k' });
+  shared.writeTaskResult(null, r);
+  // no throw, no file created — success condition is just no error
+  assert(true);
+});
+test('readTaskResult returns null for missing file', () => {
+  const missing = shared.readTaskResult(path.join(_tmpResultDir, 'does-not-exist.json'));
+  assertEqual(missing, null);
+});
+test('readTaskResult returns null when path is null', () => {
+  assertEqual(shared.readTaskResult(null), null);
+});
+test('roundtrip: success result is readable', () => {
+  const r = shared.createTaskResult({ taskId: 'rt', site: 'b.ch', keyword: 'kw' });
+  r.contentUrl = 'https://b.ch/blog/kw';
+  shared.finalizeSuccess(r);
+  const p = path.join(_tmpResultDir, 'roundtrip-ok.json');
+  shared.writeTaskResult(p, r);
+  const read = shared.readTaskResult(p);
+  assertEqual(read.status, 'success');
+  assertEqual(read.contentUrl, 'https://b.ch/blog/kw');
+  assert(read.metadata.completedAt, 'should have completedAt after finalizeSuccess');
+  assert(typeof read.metadata.durationSeconds === 'number', 'durationSeconds should be a number');
+});
+test('roundtrip: error result is readable with correct code', () => {
+  const r = shared.createTaskResult({ taskId: 'err', site: 'c.ch', keyword: 'kw' });
+  shared.finalizeError(r, { code: shared.ERROR_CODES.DUPLICATE_KEYWORD, message: 'dup test', stage: 'init', retryable: false });
+  const p = path.join(_tmpResultDir, 'roundtrip-err.json');
+  shared.writeTaskResult(p, r);
+  const read = shared.readTaskResult(p);
+  assertEqual(read.status, 'error');
+  assertEqual(read.error.code, 'DUPLICATE_KEYWORD');
+  assertEqual(read.error.retryable, false);
+});
+
+suite('Task Result — ERROR_CODES enum');
+test('contains expected codes', () => {
+  assertIncludes(Object.keys(shared.ERROR_CODES), 'CLAUDE_CIRCUIT_OPEN');
+  assertIncludes(Object.keys(shared.ERROR_CODES), 'DUPLICATE_KEYWORD');
+  assertIncludes(Object.keys(shared.ERROR_CODES), 'SANITY_PUBLISH_FAILED');
+  assertIncludes(Object.keys(shared.ERROR_CODES), 'UNKNOWN');
+});
+test('codes are strings matching their keys', () => {
+  for (const [k, v] of Object.entries(shared.ERROR_CODES)) {
+    assertEqual(v, k, `ERROR_CODES.${k} should equal its key`);
+  }
+});
+
+suite('PR 0.3 guard — workflows pass --output-json');
+test('workflow-daily.js passes --output-json to pipeline', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  assert(src.includes("'--output-json'"), 'workflow-daily should pass --output-json');
+});
+test('workflow-single-task.js passes --output-json to pipeline', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
+  assert(src.includes("'--output-json'"), 'workflow-single-task should pass --output-json');
+});
+test('workflow-daily no longer parses stdout with match regex', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  assert(!src.includes('stdout.match('), 'workflow-daily should not parse stdout with .match()');
+});
+test('workflow-single-task no longer parses stdout with match regex', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
+  assert(!src.includes('stdout.match('), 'workflow-single-task should not parse stdout with .match()');
+});
+
+// ═══════════════════════════════════════════════════════════════
 // Results
 // ═══════════════════════════════════════════════════════════════
 
