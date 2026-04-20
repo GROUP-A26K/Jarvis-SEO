@@ -310,7 +310,7 @@ async function handlePublishDraft(task, ctx) {
   console.log(`${prefix}+ Published to Sanity: ${resFR.docId}`);
 
   // Update publication
-  const contentUrl = `https://${site}/${article.slug}`;
+  const contentUrl = `https://${site}/blog/${article.slug.replace(/^(fr|en)-/, '')}`;
   const metaUpdates = { ...(pubRow.metadata || {}), sanity_doc_id: resFR.docId };
   if (imageAssetId) {
     metaUpdates.hero_sanity_asset_id = imageAssetId;
