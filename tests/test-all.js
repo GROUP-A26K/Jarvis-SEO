@@ -615,6 +615,18 @@ test('workflow-single-task.js no longer defines sendPublicationNotification', ()
   const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
   assert(!src.includes('async function sendPublicationNotification('), 'workflow-single-task should not define sendPublicationNotification locally');
 });
+test('task-handlers exports handleRegenerateExhibit', () => {
+  const h = require('../scripts/handlers/task-handlers');
+  assertEqual(typeof h.handleRegenerateExhibit, 'function');
+});
+test('workflow-single-task.js delegates regenerate_exhibit to handler', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
+  assert(src.includes('handleRegenerateExhibit(task,'), 'workflow-single-task should call handleRegenerateExhibit');
+});
+test('workflow-single-task.js no longer has inline planExhibits require', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
+  assert(!src.includes("require('./seo-exhibits')"), 'workflow-single-task should not inline-require ./seo-exhibits anymore');
+});
 
 // ═══════════════════════════════════════════════════════════════
 // Results

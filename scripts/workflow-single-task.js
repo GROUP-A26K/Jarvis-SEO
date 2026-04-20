@@ -17,9 +17,9 @@ const path = require('path');
 const fs = require('fs');
 const {
   logger, requireAnthropicKey, sendEmail, esc,
-  validateArticleInput, sanitize, getSiteConfig,
+  validateArticleInput, sanitize,
 } = require('./seo-shared');
-const { runArticle, sendPublicationNotification } = require('./handlers/task-handlers');
+const { runArticle, sendPublicationNotification, handleRegenerateExhibit } = require('./handlers/task-handlers');
 const {
   getClient,
   ackTask, failTask,
@@ -178,53 +178,7 @@ async function main() {
 
     // ── regenerate_exhibit action ──
     if (task.action === 'regenerate_exhibit') {
-      if (!task.publication_id) throw new Error('regenerate_exhibit requires publication_id');
-      const exhibitNumber = task.payload?.exhibit_number || 1;
-      const userPrompt = task.payload?.prompt || '';
-
-      const { data: pubRow, error: pubErr } = await getClient()
-        .from('publications')
-        .select('draft_content, website_id, websites(domain)')
-        .eq('id', task.publication_id)
-        .single();
-      if (pubErr) throw new Error(`Fetch publication: ${pubErr.message}`);
-      if (!pubRow?.draft_content) throw new Error('No draft_content on publication');
-
-      const draft = pubRow.draft_content;
-      const site = pubRow.websites?.domain;
-      if (!site) throw new Error('Publication has no site domain');
-
-      const fullText = (draft.sections || []).map(s => `${s.heading}\n${s.content}`).join('\n\n');
-
-      const { planExhibits, processExhibit } = require('./seo-exhibits');
-      const apiKey = requireAnthropicKey();
-      const siteConf = getSiteConfig(site);
-
-      const keyword = draft.title || '';
-      const briefs = await planExhibits(apiKey, fullText, siteConf ? siteConf.siteContext : {}, keyword);
-      const brief = briefs.find(b => b.exhibit_number === exhibitNumber) || briefs[0];
-      if (!brief) throw new Error('No exhibit brief generated');
-
-      if (userPrompt) {
-        brief.data_context = `${brief.data_context}. Instructions supplémentaires: ${userPrompt}`;
-      }
-
-      const result = await processExhibit(apiKey, fullText, brief, keyword, site, draft.slug, true);
-      if (!result) throw new Error('Exhibit generation failed');
-
-      // Upload to storage
-      const storagePath = await uploadExhibitToStorage(task.publication_id, exhibitNumber, result.pngPath);
-
-      // Update draft_content.exhibits
-      const updatedExhibits = (draft.exhibits || []).filter(e => e.exhibitNumber !== exhibitNumber);
-      updatedExhibits.push({ altText: result.altText, exhibitNumber, storagePath });
-      updatedExhibits.sort((a, b) => a.exhibitNumber - b.exhibitNumber);
-
-      const updatedDraft = { ...draft, exhibits: updatedExhibits };
-      await getClient().from('publications').update({ draft_content: updatedDraft }).eq('id', task.publication_id);
-
-      await ackTask(task.id, { exhibit_number: exhibitNumber, storage_path: storagePath });
-      console.log(`  + Exhibit ${exhibitNumber} regenerated and uploaded\n`);
+      await handleRegenerateExhibit(task, { client: getClient(), ackTask, uploadExhibitToStorage });
       return;
     }
 
