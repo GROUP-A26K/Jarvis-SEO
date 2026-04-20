@@ -562,14 +562,18 @@ test('codes are strings matching their keys', () => {
   }
 });
 
-suite('PR 0.3 guard — workflows pass --output-json');
-test('workflow-daily.js passes --output-json to pipeline', () => {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
-  assert(src.includes("'--output-json'"), 'workflow-daily should pass --output-json');
+suite('PR 0.3 guard — task-handlers passes --output-json');
+test('handlers/task-handlers.js passes --output-json to pipeline', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'handlers', 'task-handlers.js'), 'utf-8');
+  assert(src.includes("'--output-json'"), 'task-handlers should pass --output-json');
 });
-test('workflow-single-task.js passes --output-json to pipeline', () => {
+test('workflow-daily.js no longer defines its own runArticle', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  assert(!src.includes('function runArticle('), 'workflow-daily should not define runArticle locally');
+});
+test('workflow-single-task.js no longer defines its own runArticle', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
-  assert(src.includes("'--output-json'"), 'workflow-single-task should pass --output-json');
+  assert(!src.includes('function runArticle('), 'workflow-single-task should not define runArticle locally');
 });
 test('workflow-daily no longer parses stdout with match regex', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
@@ -578,6 +582,144 @@ test('workflow-daily no longer parses stdout with match regex', () => {
 test('workflow-single-task no longer parses stdout with match regex', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
   assert(!src.includes('stdout.match('), 'workflow-single-task should not parse stdout with .match()');
+});
+
+suite('PR 0.4 guard — handlers layer wired correctly');
+test('scripts/handlers/ directory exists', () => {
+  const dir = path.join(__dirname, '..', 'scripts', 'handlers');
+  assert(fs.existsSync(dir), 'scripts/handlers/ should exist');
+  assert(fs.statSync(dir).isDirectory(), 'scripts/handlers/ should be a directory');
+});
+test('scripts/handlers/README.md exists', () => {
+  const f = path.join(__dirname, '..', 'scripts', 'handlers', 'README.md');
+  assert(fs.existsSync(f), 'scripts/handlers/README.md should exist');
+});
+test('task-handlers module exports runArticle and sendPublicationNotification', () => {
+  const h = require('../scripts/handlers/task-handlers');
+  assertEqual(typeof h.runArticle, 'function');
+  assertEqual(typeof h.sendPublicationNotification, 'function');
+});
+test('workflow-daily.js imports from handlers/task-handlers', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  assert(src.includes("require('./handlers/task-handlers')"), 'workflow-daily should import from ./handlers/task-handlers');
+});
+test('workflow-single-task.js imports from handlers/task-handlers', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
+  assert(src.includes("require('./handlers/task-handlers')"), 'workflow-single-task should import from ./handlers/task-handlers');
+});
+test('workflow-daily.js no longer defines sendPublicationNotification', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  assert(!src.includes('async function sendPublicationNotification('), 'workflow-daily should not define sendPublicationNotification locally');
+});
+test('workflow-single-task.js no longer defines sendPublicationNotification', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
+  assert(!src.includes('async function sendPublicationNotification('), 'workflow-single-task should not define sendPublicationNotification locally');
+});
+test('task-handlers exports handleRegenerateExhibit', () => {
+  const h = require('../scripts/handlers/task-handlers');
+  assertEqual(typeof h.handleRegenerateExhibit, 'function');
+});
+test('workflow-single-task.js delegates regenerate_exhibit to handler', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
+  assert(src.includes('handleRegenerateExhibit(task,'), 'workflow-single-task should call handleRegenerateExhibit');
+});
+test('workflow-single-task.js no longer has inline planExhibits require', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
+  assert(!src.includes("require('./seo-exhibits')"), 'workflow-single-task should not inline-require ./seo-exhibits anymore');
+});
+test('task-handlers exports handleScheduledPublication', () => {
+  const h = require('../scripts/handlers/task-handlers');
+  assertEqual(typeof h.handleScheduledPublication, 'function');
+});
+test('workflow-daily.js delegates scheduled publications to handler', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  assert(src.includes('handleScheduledPublication(pub,'), 'workflow-daily should call handleScheduledPublication');
+});
+test('workflow-daily.js no longer calls runArticle directly in pub loop', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  const pubLoopStart = src.indexOf('for (const pub of pubs)');
+  assert(pubLoopStart > -1, 'pub loop should exist');
+  const taskLoopStart = src.indexOf('for (const task of tasks)');
+  const pubLoopBody = src.slice(pubLoopStart, taskLoopStart > -1 ? taskLoopStart : src.length);
+  assert(!pubLoopBody.includes('runArticle('), 'pub loop should delegate to handler (no direct runArticle call)');
+});
+test('task-handlers exports handlePublishDraft', () => {
+  const h = require('../scripts/handlers/task-handlers');
+  assertEqual(typeof h.handlePublishDraft, 'function');
+});
+test('workflow-daily.js delegates publish_draft to handler', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  assert(src.includes('handlePublishDraft(task,'), 'workflow-daily should call handlePublishDraft');
+});
+test('workflow-single-task.js delegates publish_draft to handler', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
+  assert(src.includes('handlePublishDraft(task,'), 'workflow-single-task should call handlePublishDraft');
+});
+test('workflow-daily.js no longer calls publishToSanity directly', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  // publishToSanity should only appear in the import line now; check no direct await call
+  assert(!src.includes('await publishToSanity('), 'workflow-daily should not call publishToSanity directly');
+});
+test('workflow-single-task.js no longer calls publishToSanity directly in publish_draft', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
+  assert(!src.includes('await publishToSanity('), 'workflow-single-task should not call publishToSanity directly');
+});
+test('task-handlers exports handleGenerateArticle', () => {
+  const h = require('../scripts/handlers/task-handlers');
+  assertEqual(typeof h.handleGenerateArticle, 'function');
+});
+test('workflow-daily.js delegates generate_article to handler', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  assert(src.includes('handleGenerateArticle(task,'), 'workflow-daily should call handleGenerateArticle');
+});
+test('workflow-single-task.js delegates generate_article to handler', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
+  assert(src.includes('handleGenerateArticle(task,'), 'workflow-single-task should call handleGenerateArticle');
+});
+test('workflow-daily.js no longer imports sanitize/validateArticleInput', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  // These were removed when generate_article was extracted
+  assert(!src.match(/sanitize[^a-zA-Z]/), 'workflow-daily should not need sanitize anymore');
+  assert(!src.includes('validateArticleInput'), 'workflow-daily should not need validateArticleInput anymore');
+});
+test('workflow-single-task.js no longer imports path/fs/SCRIPTS_DIR at top', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
+  assert(!src.includes("require('path')"), 'workflow-single-task should not need path at top');
+  assert(!src.includes("require('fs')"), 'workflow-single-task should not need fs at top');
+  assert(!src.includes('const SCRIPTS_DIR ='), 'workflow-single-task should not define SCRIPTS_DIR anymore');
+});
+
+suite('PR 0.4 — task-handlers module surface (final)');
+test('exports exactly the 6 expected symbols', () => {
+  const h = require('../scripts/handlers/task-handlers');
+  const keys = Object.keys(h).sort().join(',');
+  assertEqual(keys, 'handleGenerateArticle,handlePublishDraft,handleRegenerateExhibit,handleScheduledPublication,runArticle,sendPublicationNotification');
+});
+test('all 4 handlers are async functions', () => {
+  const h = require('../scripts/handlers/task-handlers');
+  for (const name of ['handleGenerateArticle', 'handlePublishDraft', 'handleRegenerateExhibit', 'handleScheduledPublication']) {
+    assertEqual(h[name].constructor.name, 'AsyncFunction', `${name} should be AsyncFunction`);
+  }
+});
+test('sendPublicationNotification is async, runArticle is sync', () => {
+  const h = require('../scripts/handlers/task-handlers');
+  assertEqual(h.sendPublicationNotification.constructor.name, 'AsyncFunction');
+  assertEqual(h.runArticle.constructor.name, 'Function', 'runArticle uses execFileSync, should be sync');
+});
+test('workflow-daily.js final line count <= 160 (dispatcher size sanity)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  const lineCount = src.split('\n').length;
+  assert(lineCount <= 160, `workflow-daily.js should be <= 160 lines post-PR-0.4, got ${lineCount}`);
+});
+test('workflow-single-task.js final line count <= 160 (dispatcher size sanity)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
+  const lineCount = src.split('\n').length;
+  assert(lineCount <= 160, `workflow-single-task.js should be <= 160 lines post-PR-0.4, got ${lineCount}`);
+});
+test('scripts/handlers/README.md documents the layer', () => {
+  const readme = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'handlers', 'README.md'), 'utf-8');
+  assert(readme.includes('lib/'), 'README should reference lib/');
+  assert(readme.includes('task-handlers'), 'README should reference task-handlers');
 });
 
 // ═══════════════════════════════════════════════════════════════
