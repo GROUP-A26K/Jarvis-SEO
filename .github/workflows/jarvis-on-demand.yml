@@ -45,6 +45,16 @@ jobs:
       - name: Run single task
         run: node scripts/workflow-single-task.js --task-id ${{ github.event.inputs.task_id }}
 
+      # PR 0.3 : upload pipeline JSON results for post-mortem debugging
+      - name: Upload pipeline result JSON
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: jarvis-on-demand-results-${{ github.run_id }}
+          path: ${{ runner.temp }}/jarvis-result-*.json
+          if-no-files-found: ignore
+          retention-days: 7
+
       # Alerting on failure
       - name: Notify on failure
         if: failure()
