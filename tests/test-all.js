@@ -562,14 +562,18 @@ test('codes are strings matching their keys', () => {
   }
 });
 
-suite('PR 0.3 guard — workflows pass --output-json');
-test('workflow-daily.js passes --output-json to pipeline', () => {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
-  assert(src.includes("'--output-json'"), 'workflow-daily should pass --output-json');
+suite('PR 0.3 guard — task-handlers passes --output-json');
+test('handlers/task-handlers.js passes --output-json to pipeline', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'handlers', 'task-handlers.js'), 'utf-8');
+  assert(src.includes("'--output-json'"), 'task-handlers should pass --output-json');
 });
-test('workflow-single-task.js passes --output-json to pipeline', () => {
+test('workflow-daily.js no longer defines its own runArticle', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  assert(!src.includes('function runArticle('), 'workflow-daily should not define runArticle locally');
+});
+test('workflow-single-task.js no longer defines its own runArticle', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
-  assert(src.includes("'--output-json'"), 'workflow-single-task should pass --output-json');
+  assert(!src.includes('function runArticle('), 'workflow-single-task should not define runArticle locally');
 });
 test('workflow-daily no longer parses stdout with match regex', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
@@ -578,6 +582,38 @@ test('workflow-daily no longer parses stdout with match regex', () => {
 test('workflow-single-task no longer parses stdout with match regex', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
   assert(!src.includes('stdout.match('), 'workflow-single-task should not parse stdout with .match()');
+});
+
+suite('PR 0.4 guard — handlers layer wired correctly');
+test('scripts/handlers/ directory exists', () => {
+  const dir = path.join(__dirname, '..', 'scripts', 'handlers');
+  assert(fs.existsSync(dir), 'scripts/handlers/ should exist');
+  assert(fs.statSync(dir).isDirectory(), 'scripts/handlers/ should be a directory');
+});
+test('scripts/handlers/README.md exists', () => {
+  const f = path.join(__dirname, '..', 'scripts', 'handlers', 'README.md');
+  assert(fs.existsSync(f), 'scripts/handlers/README.md should exist');
+});
+test('task-handlers module exports runArticle and sendPublicationNotification', () => {
+  const h = require('../scripts/handlers/task-handlers');
+  assertEqual(typeof h.runArticle, 'function');
+  assertEqual(typeof h.sendPublicationNotification, 'function');
+});
+test('workflow-daily.js imports from handlers/task-handlers', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  assert(src.includes("require('./handlers/task-handlers')"), 'workflow-daily should import from ./handlers/task-handlers');
+});
+test('workflow-single-task.js imports from handlers/task-handlers', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
+  assert(src.includes("require('./handlers/task-handlers')"), 'workflow-single-task should import from ./handlers/task-handlers');
+});
+test('workflow-daily.js no longer defines sendPublicationNotification', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  assert(!src.includes('async function sendPublicationNotification('), 'workflow-daily should not define sendPublicationNotification locally');
+});
+test('workflow-single-task.js no longer defines sendPublicationNotification', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
+  assert(!src.includes('async function sendPublicationNotification('), 'workflow-single-task should not define sendPublicationNotification locally');
 });
 
 // ═══════════════════════════════════════════════════════════════
