@@ -26,7 +26,7 @@ const {
   getClient,
   fetchTodayPublications, fetchPendingTasks,
   markPublished, ackTask, failTask,
-  downloadHeroImage, updatePublicationMetadata,
+  downloadHeroImage, uploadExhibitToStorage, updatePublicationMetadata,
   saveDraftContent, createNotification, fetchSiteAdmins,
 } = require('./calendar-connector');
 const { publishToSanity, uploadImageToSanity } = require('./seo-publish-article');
@@ -96,12 +96,12 @@ async function main() {
       await handleGenerateArticle(task, {
         apiKey, dryRun,
         logPrefix: '     ', trailingNewline: false,
-        uploadExhibitsToStorage: false,
+        uploadExhibitsToStorage: true,
         announceTask: false,
         logPublishedOk: false, logGenericOk: true,
         client: getClient(), ackTask, downloadHeroImage, markPublished,
         updatePublicationMetadata, saveDraftContent, createNotification,
-        fetchSiteAdmins,
+        fetchSiteAdmins, uploadExhibitToStorage,
       });
       results.tasks++;
     } catch (e) {

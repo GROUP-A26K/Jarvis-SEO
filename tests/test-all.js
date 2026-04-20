@@ -672,6 +672,16 @@ test('workflow-daily.js delegates generate_article to handler', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
   assert(src.includes('handleGenerateArticle(task,'), 'workflow-daily should call handleGenerateArticle');
 });
+test('workflow-daily.js imports uploadExhibitToStorage from calendar-connector', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  assert(src.includes('uploadExhibitToStorage'), 'workflow-daily should import uploadExhibitToStorage from calendar-connector (parity with single-task)');
+});
+test('workflow-daily.js passes uploadExhibitsToStorage: true and the adapter in ctx', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-daily.js'), 'utf-8');
+  assert(src.includes('uploadExhibitsToStorage: true'), 'workflow-daily should enable uploadExhibitsToStorage (parity with single-task)');
+  assert(!src.includes('uploadExhibitsToStorage: false'), 'workflow-daily should not pass uploadExhibitsToStorage: false anymore');
+  assert(src.match(/fetchSiteAdmins,\s*uploadExhibitToStorage,/), 'workflow-daily should include uploadExhibitToStorage in the handleGenerateArticle ctx');
+});
 test('workflow-single-task.js delegates generate_article to handler', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'workflow-single-task.js'), 'utf-8');
   assert(src.includes('handleGenerateArticle(task,'), 'workflow-single-task should call handleGenerateArticle');
