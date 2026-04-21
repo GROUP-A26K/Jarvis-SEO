@@ -1128,11 +1128,11 @@ ${htmlSections}${faqHtml}
       sanityAssetId: ex.assetId,
       altText: ex.altText || null,
     }));
-  } catch (err) { console.error(`  ! Sanity FR: ${err.message}`); throw err; }
+  } catch (err) { console.error(`  ! Sanity FR: ${err.message}`); err.errorCode = ERROR_CODES.SANITY_PUBLISH_FAILED; throw err; }
   try {
     const resEN = await publishToSanity(opts.site, articleEN, 'en', opts.persona, geoScore, disclaimer, imageAssetId, imageAlt, exhibitAssetIds, opts.keyword);
     console.log(`  + EN: ${resEN.docId}`);
-  } catch (err) { console.error(`  ! Sanity EN: ${err.message}`); throw err; }
+  } catch (err) { console.error(`  ! Sanity EN: ${err.message}`); err.errorCode = ERROR_CODES.SANITY_PUBLISH_FAILED; throw err; }
   if (publishedDocId) {
     const now = new Date();
     trackArticle(db, { id: publishedDocId, site: opts.site, keyword: opts.keyword, keywordEN: keywordEN ? keywordEN.keyword : null, persona: opts.persona, slug: articleFR.slug, geoScore: geoScore.total, geoStatus: geoScore.status, geoVisibility: geoVisibility.visibility, publishedAt: now.toISOString(), j30: addDays(now, 30), j60: addDays(now, 60), j90: addDays(now, 90) });
@@ -1163,10 +1163,10 @@ if (require.main === module) {
   main().catch((err) => {
     try {
       if (_pipelineResult) {
-        const code = /circuit/i.test(err.message) ? ERROR_CODES.CLAUDE_CIRCUIT_OPEN
-                   : /sanity/i.test(err.message) ? ERROR_CODES.SANITY_PUBLISH_FAILED
-                   : /semrush/i.test(err.message) ? ERROR_CODES.SEMRUSH_API_FAILED
-                   : ERROR_CODES.UNKNOWN;
+        const code = err.errorCode
+                   || (/circuit/i.test(err.message) ? ERROR_CODES.CLAUDE_CIRCUIT_OPEN
+                     : /semrush/i.test(err.message) ? ERROR_CODES.SEMRUSH_API_FAILED
+                     : ERROR_CODES.UNKNOWN);
         finalizeError(_pipelineResult, { code, message: err.message, stage: 'pipeline', retryable: false });
         // opts.outputJson may not be reachable here; fallback via argv parse
         const idx = process.argv.indexOf('--output-json');
