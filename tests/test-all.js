@@ -740,6 +740,23 @@ test('scripts/handlers/README.md documents the layer', () => {
   assert(readme.includes('task-handlers'), 'README should reference task-handlers');
 });
 
+test('seo-publish-article.js catch Sanity FR propagates errors (throw err)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'seo-publish-article.js'), 'utf-8');
+  assert(src.includes('} catch (err) { console.error(`  ! Sanity FR: ${err.message}`); throw err; }'), 'seo-publish-article.js FR catch must re-throw the error so the pipeline marks the task as failed instead of continuing with result.sanity=null');
+});
+test('seo-publish-article.js catch Sanity EN propagates errors (throw err)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'seo-publish-article.js'), 'utf-8');
+  assert(src.includes('} catch (err) { console.error(`  ! Sanity EN: ${err.message}`); throw err; }'), 'seo-publish-article.js EN catch must re-throw the error so a partial publication is marked as failed');
+});
+test('seo-publish-article.js no longer has the silent Sanity FR catch', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'seo-publish-article.js'), 'utf-8');
+  assert(!src.includes('} catch (err) { console.error(`  ! Sanity FR: ${err.message}`); }'), 'seo-publish-article.js must not swallow Sanity FR errors silently — the silent catch form should be replaced with one that re-throws');
+});
+test('seo-publish-article.js no longer has the silent Sanity EN catch', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'seo-publish-article.js'), 'utf-8');
+  assert(!src.includes('} catch (err) { console.error(`  ! Sanity EN: ${err.message}`); }'), 'seo-publish-article.js must not swallow Sanity EN errors silently — the silent catch form should be replaced with one that re-throws');
+});
+
 // ═══════════════════════════════════════════════════════════════
 // Results
 // ═══════════════════════════════════════════════════════════════
