@@ -1128,11 +1128,11 @@ ${htmlSections}${faqHtml}
       sanityAssetId: ex.assetId,
       altText: ex.altText || null,
     }));
-  } catch (err) { console.error(`  ! Sanity FR: ${err.message}`); }
+  } catch (err) { console.error(`  ! Sanity FR: ${err.message}`); throw err; }
   try {
     const resEN = await publishToSanity(opts.site, articleEN, 'en', opts.persona, geoScore, disclaimer, imageAssetId, imageAlt, exhibitAssetIds, opts.keyword);
     console.log(`  + EN: ${resEN.docId}`);
-  } catch (err) { console.error(`  ! Sanity EN: ${err.message}`); }
+  } catch (err) { console.error(`  ! Sanity EN: ${err.message}`); throw err; }
   if (publishedDocId) {
     const now = new Date();
     trackArticle(db, { id: publishedDocId, site: opts.site, keyword: opts.keyword, keywordEN: keywordEN ? keywordEN.keyword : null, persona: opts.persona, slug: articleFR.slug, geoScore: geoScore.total, geoStatus: geoScore.status, geoVisibility: geoVisibility.visibility, publishedAt: now.toISOString(), j30: addDays(now, 30), j60: addDays(now, 60), j90: addDays(now, 90) });
