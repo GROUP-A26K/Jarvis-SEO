@@ -742,11 +742,11 @@ test('scripts/handlers/README.md documents the layer', () => {
 
 test('seo-publish-article.js catch Sanity FR propagates errors (throw err)', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'seo-publish-article.js'), 'utf-8');
-  assert(src.includes('} catch (err) { console.error(`  ! Sanity FR: ${err.message}`); throw err; }'), 'seo-publish-article.js FR catch must re-throw the error so the pipeline marks the task as failed instead of continuing with result.sanity=null');
+  assert(src.includes('} catch (err) { console.error(`  ! Sanity FR: ${err.message}`); err.errorCode = ERROR_CODES.SANITY_PUBLISH_FAILED; throw err; }'), 'seo-publish-article.js FR catch must tag err.errorCode and re-throw so the pipeline marks the task as failed with the correct SANITY_PUBLISH_FAILED code');
 });
 test('seo-publish-article.js catch Sanity EN propagates errors (throw err)', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'seo-publish-article.js'), 'utf-8');
-  assert(src.includes('} catch (err) { console.error(`  ! Sanity EN: ${err.message}`); throw err; }'), 'seo-publish-article.js EN catch must re-throw the error so a partial publication is marked as failed');
+  assert(src.includes('} catch (err) { console.error(`  ! Sanity EN: ${err.message}`); err.errorCode = ERROR_CODES.SANITY_PUBLISH_FAILED; throw err; }'), 'seo-publish-article.js EN catch must tag err.errorCode and re-throw so a partial publication is marked as failed with the correct SANITY_PUBLISH_FAILED code');
 });
 test('seo-publish-article.js no longer has the silent Sanity FR catch', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'seo-publish-article.js'), 'utf-8');
@@ -755,6 +755,22 @@ test('seo-publish-article.js no longer has the silent Sanity FR catch', () => {
 test('seo-publish-article.js no longer has the silent Sanity EN catch', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'seo-publish-article.js'), 'utf-8');
   assert(!src.includes('} catch (err) { console.error(`  ! Sanity EN: ${err.message}`); }'), 'seo-publish-article.js must not swallow Sanity EN errors silently — the silent catch form should be replaced with one that re-throws');
+});
+
+
+suite('PR 0.9 guard — Sanity error tagging (err.errorCode)');
+test('seo-publish-article.js tags FR catch with ERROR_CODES.SANITY_PUBLISH_FAILED', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'seo-publish-article.js'), 'utf-8');
+  assert(src.includes('! Sanity FR:') && src.includes('err.errorCode = ERROR_CODES.SANITY_PUBLISH_FAILED'), 'FR catch must tag err.errorCode = ERROR_CODES.SANITY_PUBLISH_FAILED before throw so routing does not depend on err.message');
+});
+test('seo-publish-article.js tags EN catch with ERROR_CODES.SANITY_PUBLISH_FAILED', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'seo-publish-article.js'), 'utf-8');
+  assert(src.includes('! Sanity EN:') && src.includes('err.errorCode = ERROR_CODES.SANITY_PUBLISH_FAILED'), 'EN catch must tag err.errorCode = ERROR_CODES.SANITY_PUBLISH_FAILED before throw so routing does not depend on err.message');
+});
+test('seo-publish-article.js main().catch() prefers err.errorCode over err.message regex', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'seo-publish-article.js'), 'utf-8');
+  assert(src.includes('const code = err.errorCode'), 'main().catch() must read err.errorCode first before falling back to message regex');
+  assert(!src.includes('/sanity/i.test(err.message)'), 'main().catch() must not use /sanity/i regex anymore — use err.errorCode tag instead');
 });
 
 // ═══════════════════════════════════════════════════════════════
