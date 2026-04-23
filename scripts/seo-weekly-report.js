@@ -26,6 +26,7 @@ const {
   callClaudeWithRetry,
   extractClaudeText,
   httpRequest,
+  getISOWeek,
   esc,
   readJSONSafe,
   writeJSONAtomic,
@@ -70,7 +71,7 @@ function getWeekDates(weekStr) {
     year: monday.getFullYear(),
   };
 }
-// getISOWeek loaded from seo-shared.js
+
 function formatDate(d) {
   return d.toISOString().split('T')[0];
 }
@@ -300,7 +301,7 @@ async function getGoogleToken(oauth) {
 async function fetchGSC(token, site, start, end) {
   try {
     const r = await httpRequest(
-      `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent('sc-domain:' + site)}/searchAnalytics/query`,
+      `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(`sc-domain:${site}`)}/searchAnalytics/query`,
       {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -440,7 +441,7 @@ function generateHTML(data) {
   for (const [domain, sd] of Object.entries(sites)) {
     const label = SITE_LABELS[domain] || domain;
     const pages = sd.current.pages || [];
-    let rows = pages
+    const rows = pages
       .slice(0, 8)
       .map(
         (p) =>
@@ -495,7 +496,7 @@ function generateHTML(data) {
 <div class="header"><div><h1>Rapport SEO Hebdomadaire</h1><div class="period">Semaine ${wn}, ${year} &mdash; ${period}</div></div><div class="logo">Groupe Genevoise</div></div>
 <div class="content">
 <h2>Synthese Executive</h2>
-<div class="kpi-grid">${kpi('Impressions', tI.toLocaleString(), eI)}${kpi('Clics', tC.toLocaleString(), eC)}${kpi('CTR', ctr.toFixed(1) + '%', eCtr)}${kpi('Position', avgP.toFixed(1), eP)}</div>
+<div class="kpi-grid">${kpi('Impressions', tI.toLocaleString(), eI)}${kpi('Clics', tC.toLocaleString(), eC)}${kpi('CTR', `${ctr.toFixed(1)}%`, eCtr)}${kpi('Position', avgP.toFixed(1), eP)}</div>
 <h2>Business Lines</h2>${siteSections}
 ${trackingSection}${ctrSection}${decaySection}${geoSection}${gapSection}
 </div>

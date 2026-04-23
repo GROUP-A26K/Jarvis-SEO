@@ -71,7 +71,7 @@ function getSanityDocType(site) {
   const config = getSiteConfig(site);
   if (config && config.sanity && config.sanity.documentType) return config.sanity.documentType;
   // Fallback: generate from site name
-  return site.replace(/[-\.]/g, '') + 'BlogPost';
+  return `${site.replace(/[-.]/g, '')}BlogPost`;
 }
 
 /**
