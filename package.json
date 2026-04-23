@@ -4,6 +4,7 @@
   "description": "Workflow SEO automatise — Groupe Genevoise — Jarvis One",
   "private": true,
   "scripts": {
+    "check": "npm run lint && npm run format:check && npm test",
     "deploy": "node scripts/seo-orchestrator.js --publish",
     "execute": "node scripts/seo-orchestrator.js --execute",
     "exhibits:dry": "node scripts/seo-exhibits.js --test --dry-run",
@@ -13,7 +14,11 @@
     "gap": "node scripts/seo-gap-analysis.js",
     "images": "node scripts/seo-images.js --all",
     "images:dry": "node scripts/seo-images.js --all --dry-run",
+    "lint": "eslint scripts/ tests/",
+    "lint:fix": "eslint scripts/ tests/ --fix",
+    "madge:cycles": "madge --circular scripts/",
     "plan": "node scripts/seo-orchestrator.js --plan",
+    "prepare": "husky",
     "publish": "node scripts/seo-publish-article.js",
     "report": "node scripts/seo-weekly-report.js",
     "setup": "node scripts/setup-check.js",
@@ -31,6 +36,12 @@
     "node": ">=18.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.15.0",
+    "eslint": "^9.15.0",
+    "globals": "^15.12.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.10",
+    "madge": "^8.0.0",
     "prettier": "^3.8.3"
   }
 }

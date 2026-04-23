@@ -17,7 +17,7 @@ function esc(s) {
 
 function sanitize(str) {
   return String(str || '')
-    .replace(/[^\w\s\-\.àâäéèêëïîôùûüç]/gi, '')
+    .replace(/[^\w\s\-.àâäéèêëïîôùûüç]/gi, '')
     .trim();
 }
 
