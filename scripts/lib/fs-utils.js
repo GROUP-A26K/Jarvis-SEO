@@ -28,7 +28,9 @@ function readJSONSafe(filePath, defaultVal) {
     return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
   } catch (e) {
     logger.warn(`JSON corrompu: ${filePath}`, { error: e.message });
-    try { fs.renameSync(filePath, `${filePath}.bak.${Date.now()}`); } catch (bErr) {
+    try {
+      fs.renameSync(filePath, `${filePath}.bak.${Date.now()}`);
+    } catch (bErr) {
       logger.warn(`Backup fichier corrompu echoue`, { error: bErr.message });
     }
     return defaultVal;

@@ -21,26 +21,36 @@ function callClaudeWithRetry(apiKey, system, user, maxTokens, retries) {
 
   // Circuit breaker check
   if (!circuitBreakers.claude.canExecute()) {
-    return Promise.reject(new Error('Claude circuit breaker OUVERT — service temporairement indisponible'));
+    return Promise.reject(
+      new Error('Claude circuit breaker OUVERT — service temporairement indisponible'),
+    );
   }
 
   function attempt(n) {
-    return _callClaude(apiKey, system, user, maxTokens || DEFAULT_MAX_TOKENS).then((result) => {
-      circuitBreakers.claude.recordSuccess();
-      return result;
-    }).catch((err) => {
-      const msg = err.message || '';
-      const isRetryable = msg.includes('529') || msg.includes('500') ||
-        msg.includes('ECONNRESET') || msg.includes('ETIMEDOUT') ||
-        msg.includes('overloaded') || msg.includes('timeout');
-      if (n < maxR && isRetryable) {
-        const delay = cfg.delays[Math.min(n, cfg.delays.length - 1)];
-        logger.warn(`Claude API erreur (tentative ${n + 1}/${maxR}): ${msg}. Retry dans ${delay / 1000}s`);
-        return new Promise((resolve) => setTimeout(resolve, delay)).then(() => attempt(n + 1));
-      }
-      circuitBreakers.claude.recordFailure();
-      throw err;
-    });
+    return _callClaude(apiKey, system, user, maxTokens || DEFAULT_MAX_TOKENS)
+      .then((result) => {
+        circuitBreakers.claude.recordSuccess();
+        return result;
+      })
+      .catch((err) => {
+        const msg = err.message || '';
+        const isRetryable =
+          msg.includes('529') ||
+          msg.includes('500') ||
+          msg.includes('ECONNRESET') ||
+          msg.includes('ETIMEDOUT') ||
+          msg.includes('overloaded') ||
+          msg.includes('timeout');
+        if (n < maxR && isRetryable) {
+          const delay = cfg.delays[Math.min(n, cfg.delays.length - 1)];
+          logger.warn(
+            `Claude API erreur (tentative ${n + 1}/${maxR}): ${msg}. Retry dans ${delay / 1000}s`,
+          );
+          return new Promise((resolve) => setTimeout(resolve, delay)).then(() => attempt(n + 1));
+        }
+        circuitBreakers.claude.recordFailure();
+        throw err;
+      });
   }
 
   return attempt(0);
@@ -70,32 +80,42 @@ function _callClaude(apiKey, system, user, maxTokens) {
 
     const body = JSON.stringify(bodyObj);
 
-    const req = https.request({
-      hostname: 'api.anthropic.com',
-      path: '/v1/messages',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'Content-Length': Buffer.byteLength(body),
+    const req = https.request(
+      {
+        hostname: 'api.anthropic.com',
+        path: '/v1/messages',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'Content-Length': Buffer.byteLength(body),
+        },
       },
-    }, (res) => {
-      let data = '';
-      res.on('data', (c) => (data += c));
-      res.on('end', () => {
-        if (res.statusCode >= 400) {
-          reject(new Error(`Claude ${res.statusCode}: ${sanitizeErrorMessage(data.slice(0, 200))}`));
-          return;
-        }
-        if (data.length > 5 * 1024 * 1024) {
-          reject(new Error(`Claude reponse trop grande: ${(data.length / 1024 / 1024).toFixed(1)}MB`));
-          return;
-        }
-        try { resolve(JSON.parse(data)); }
-        catch (e) { reject(new Error(`Claude response parse: ${e.message}`)); }
-      });
-    });
+      (res) => {
+        let data = '';
+        res.on('data', (c) => (data += c));
+        res.on('end', () => {
+          if (res.statusCode >= 400) {
+            reject(
+              new Error(`Claude ${res.statusCode}: ${sanitizeErrorMessage(data.slice(0, 200))}`),
+            );
+            return;
+          }
+          if (data.length > 5 * 1024 * 1024) {
+            reject(
+              new Error(`Claude reponse trop grande: ${(data.length / 1024 / 1024).toFixed(1)}MB`),
+            );
+            return;
+          }
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            reject(new Error(`Claude response parse: ${e.message}`));
+          }
+        });
+      },
+    );
     req.on('error', reject);
     req.setTimeout(TIMEOUTS.claude, () => {
       req.destroy();

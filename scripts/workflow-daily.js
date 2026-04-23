@@ -16,26 +16,35 @@
 const sentry = require('./lib/sentry');
 sentry.init({ script: 'workflow-daily' });
 
+const { logger, requireAnthropicKey, sendEmail } = require('./seo-shared');
 const {
-  logger, requireAnthropicKey, sendEmail,
-} = require('./seo-shared');
-const {
-  handleScheduledPublication, handlePublishDraft, handleGenerateArticle,
+  handleScheduledPublication,
+  handlePublishDraft,
+  handleGenerateArticle,
 } = require('./handlers/task-handlers');
 const {
   getClient,
-  fetchTodayPublications, fetchPendingTasks,
-  markPublished, ackTask, failTask,
-  downloadHeroImage, uploadExhibitToStorage, updatePublicationMetadata,
-  saveDraftContent, createNotification, fetchSiteAdmins,
+  fetchTodayPublications,
+  fetchPendingTasks,
+  markPublished,
+  ackTask,
+  failTask,
+  downloadHeroImage,
+  uploadExhibitToStorage,
+  updatePublicationMetadata,
+  saveDraftContent,
+  createNotification,
+  fetchSiteAdmins,
 } = require('./calendar-connector');
 const { publishToSanity, uploadImageToSanity } = require('./seo-publish-article');
 
 const dryRun = process.argv.includes('--dry-run');
 
 // Destinataires des notifications post-publication (env var requise, pas de fallback hardcode)
-const NOTIFY_EMAILS = (process.env.NOTIFY_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean);
-
+const NOTIFY_EMAILS = (process.env.NOTIFY_EMAILS || '')
+  .split(',')
+  .map((e) => e.trim())
+  .filter(Boolean);
 
 async function main() {
   console.log('========================================');
@@ -58,8 +67,11 @@ async function main() {
   for (const pub of pubs) {
     try {
       const outcome = await handleScheduledPublication(pub, {
-        apiKey, dryRun,
-        downloadHeroImage, markPublished, updatePublicationMetadata,
+        apiKey,
+        dryRun,
+        downloadHeroImage,
+        markPublished,
+        updatePublicationMetadata,
       });
       if (outcome === 'published') results.published++;
       else results.failed++;
@@ -84,9 +96,16 @@ async function main() {
       // ── publish_draft: publish existing draft_content to Sanity ──
       if (task.action === 'publish_draft') {
         await handlePublishDraft(task, {
-          dryRun, logPrefix: '     ', trailingNewline: false,
-          client: getClient(), ackTask, downloadHeroImage, uploadImageToSanity,
-          publishToSanity, fetchSiteAdmins, createNotification,
+          dryRun,
+          logPrefix: '     ',
+          trailingNewline: false,
+          client: getClient(),
+          ackTask,
+          downloadHeroImage,
+          uploadImageToSanity,
+          publishToSanity,
+          fetchSiteAdmins,
+          createNotification,
         });
         results.tasks++;
         continue;
@@ -94,14 +113,23 @@ async function main() {
 
       // ── generate_article / other actions ──
       await handleGenerateArticle(task, {
-        apiKey, dryRun,
-        logPrefix: '     ', trailingNewline: false,
+        apiKey,
+        dryRun,
+        logPrefix: '     ',
+        trailingNewline: false,
         uploadExhibitsToStorage: true,
         announceTask: false,
-        logPublishedOk: false, logGenericOk: true,
-        client: getClient(), ackTask, downloadHeroImage, markPublished,
-        updatePublicationMetadata, saveDraftContent, createNotification,
-        fetchSiteAdmins, uploadExhibitToStorage,
+        logPublishedOk: false,
+        logGenericOk: true,
+        client: getClient(),
+        ackTask,
+        downloadHeroImage,
+        markPublished,
+        updatePublicationMetadata,
+        saveDraftContent,
+        createNotification,
+        fetchSiteAdmins,
+        uploadExhibitToStorage,
       });
       results.tasks++;
     } catch (e) {
@@ -113,7 +141,9 @@ async function main() {
 
   // ── 3. Recap ──
   console.log('\n========================================');
-  console.log(`  Published: ${results.published} | Tasks: ${results.tasks} | Failed: ${results.failed}`);
+  console.log(
+    `  Published: ${results.published} | Tasks: ${results.tasks} | Failed: ${results.failed}`,
+  );
   console.log('========================================\n');
 
   if (!dryRun && (results.published > 0 || results.tasks > 0 || results.failed > 0)) {
@@ -124,10 +154,12 @@ async function main() {
         <h2 style="color:#1a1a2e">Jarvis Calendar — Recap quotidien</h2>
         <p style="color:#555"><strong>${results.published}</strong> publications | <strong>${results.tasks}</strong> taches | <strong>${results.failed}</strong> echecs</p>
         <hr style="border:none;border-top:1px solid #eee;margin:20px 0">
-        <p style="color:#999;font-size:12px">Jarvis One | A26K Group</p></div>`
+        <p style="color:#999;font-size:12px">Jarvis One | A26K Group</p></div>`,
       );
       console.log('+ Email recap envoye');
-    } catch (e) { logger.warn(`Email recap: ${e.message}`); }
+    } catch (e) {
+      logger.warn(`Email recap: ${e.message}`);
+    }
   }
 }
 

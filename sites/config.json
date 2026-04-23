@@ -46,33 +46,18 @@
       "secteur": "Assurance medicale / courtage sante",
       "ton": "Expert, technique, ancrage FINMA et FMH. Direct, factuel, chiffres precis.",
       "public": "Medecins FMH, professions liberales medicales, paramedicaux, pharmaciens",
-      "palette": [
-        "#1a1a2e",
-        "#2c5f7c",
-        "#e8d5b7",
-        "#f5f5f0"
-      ],
+      "palette": ["#1a1a2e", "#2c5f7c", "#e8d5b7", "#f5f5f0"],
       "exemples_articles": "RC Pro medecin, prevoyance LPP professions medicales, assurance perte de gain, Tardoc vs Tarmed"
     },
     "sources": "finma.ch, fmh.ch, bag.admin.ch, ofas.admin.ch, tardoc.ch, gdk-cds.ch",
-    "personas": [
-      "Hugo Schaller",
-      "Amelie Bonvin"
-    ],
-    "fallbackCompetitors": [
-      "swisslife.ch",
-      "groupe-mutuel.ch",
-      "css.ch"
-    ],
+    "personas": ["Hugo Schaller", "Amelie Bonvin"],
+    "fallbackCompetitors": ["swisslife.ch", "groupe-mutuel.ch", "css.ch"],
     "sanity": {
       "documentType": "medcourtageBlogPost"
     },
     "imageStyle": {
       "secteurRef": "SANTE / MEDICAL + FINANCE / ASSURANCE",
-      "appareils": [
-        "Canon 5D Mark IV",
-        "Leica Q2"
-      ],
+      "appareils": ["Canon 5D Mark IV", "Leica Q2"],
       "focales": "35-85mm, f/2.8-f/4",
       "palette_dominante": "blanc clinique, bleu marine, or discret, gris anthracite",
       "sujets_types": "equipements medicaux, bureaux cabinet, documents assurance, espaces cliniques",
@@ -100,33 +85,18 @@
       "secteur": "Fiduciaire / comptabilite / fiscalite",
       "ton": "Technique, direct, expertise fiscale suisse. Optimisation, restructuration.",
       "public": "Entrepreneurs, PME genevoises, holdings, professions liberales",
-      "palette": [
-        "#1a1a2e",
-        "#c9a84c",
-        "#f5f5f0",
-        "#4a4a4a"
-      ],
+      "palette": ["#1a1a2e", "#c9a84c", "#f5f5f0", "#4a4a4a"],
       "exemples_articles": "Creation SA Geneve, optimisation fiscale, TVA suisse, comptabilite PME"
     },
     "sources": "fedlex.admin.ch, estv.admin.ch, ge.ch/impots, rc.ge.ch, seco.admin.ch",
-    "personas": [
-      "Marc Favre",
-      "Elodie Rochat"
-    ],
-    "fallbackCompetitors": [
-      "bdo.ch",
-      "kpmg.ch",
-      "fiduciaire.ch"
-    ],
+    "personas": ["Marc Favre", "Elodie Rochat"],
+    "fallbackCompetitors": ["bdo.ch", "kpmg.ch", "fiduciaire.ch"],
     "sanity": {
       "documentType": "fiduciaireBlogPost"
     },
     "imageStyle": {
       "secteurRef": "FINANCE / BANQUE / ASSURANCE + JURIDIQUE / NOTARIAL",
-      "appareils": [
-        "Canon R5",
-        "Leica Q2"
-      ],
+      "appareils": ["Canon R5", "Leica Q2"],
       "focales": "35-50mm, f/2.8-f/4",
       "palette_dominante": "gris anthracite, or bronze, blanc casse, bois sombre",
       "sujets_types": "espaces de travail, documents comptables, ecrans, architecture bureaux",
@@ -154,33 +124,18 @@
       "secteur": "Fiduciaire / comptabilite / fiscalite",
       "ton": "Technique, direct, expertise fiscale vaudoise. Precision, methode.",
       "public": "Entrepreneurs, PME vaudoises, professions liberales, createurs d'entreprise",
-      "palette": [
-        "#1a1a2e",
-        "#c9a84c",
-        "#f5f5f0",
-        "#4a4a4a"
-      ],
+      "palette": ["#1a1a2e", "#c9a84c", "#f5f5f0", "#4a4a4a"],
       "exemples_articles": "Fiscalite vaudoise, comptabilite PME, creation Sarl, TVA 2026"
     },
     "sources": "fedlex.admin.ch, estv.admin.ch, vd.ch/themes/fiscalite, seco.admin.ch",
-    "personas": [
-      "Marc Favre",
-      "Elodie Rochat"
-    ],
-    "fallbackCompetitors": [
-      "bdo.ch",
-      "fidag.ch",
-      "berney-associes.ch"
-    ],
+    "personas": ["Marc Favre", "Elodie Rochat"],
+    "fallbackCompetitors": ["bdo.ch", "fidag.ch", "berney-associes.ch"],
     "sanity": {
       "documentType": "fiduciaireVaudoiseBlogPost"
     },
     "imageStyle": {
       "secteurRef": "FINANCE / BANQUE / ASSURANCE + JURIDIQUE / NOTARIAL",
-      "appareils": [
-        "Canon R5",
-        "Leica Q2"
-      ],
+      "appareils": ["Canon R5", "Leica Q2"],
       "focales": "35-50mm, f/2.8-f/4",
       "palette_dominante": "gris anthracite, or bronze, blanc casse, bois sombre",
       "sujets_types": "espaces de travail, documents comptables, ecrans, architecture bureaux",
@@ -208,33 +163,18 @@
       "secteur": "Relocation / expatriation / immigration",
       "ton": "Pratique, chaleureux, terrain. Logistique + integration + famille.",
       "public": "Expatries, entreprises internationales, familles en relocation vers Geneve/Suisse",
-      "palette": [
-        "#1a1a2e",
-        "#3a7d6e",
-        "#e8d5b7",
-        "#f5f5f0"
-      ],
+      "palette": ["#1a1a2e", "#3a7d6e", "#e8d5b7", "#f5f5f0"],
       "exemples_articles": "Permis de travail Suisse, demenagement international, ecoles internationales Geneve, bail suisse"
     },
     "sources": "fedlex.admin.ch, sem.admin.ch, ge.ch/population, ocl.ge.ch, asloca.ch",
-    "personas": [
-      "Lucas Morel",
-      "Sofia Meier"
-    ],
-    "fallbackCompetitors": [
-      "packimpex.ch",
-      "gfrelo.ch",
-      "expatya.ch"
-    ],
+    "personas": ["Lucas Morel", "Sofia Meier"],
+    "fallbackCompetitors": ["packimpex.ch", "gfrelo.ch", "expatya.ch"],
     "sanity": {
       "documentType": "relocationBlogPost"
     },
     "imageStyle": {
       "secteurRef": "IMMOBILIER / ARCHITECTURE",
-      "appareils": [
-        "Sony A7IV",
-        "Fujifilm X-T5"
-      ],
+      "appareils": ["Sony A7IV", "Fujifilm X-T5"],
       "focales": "24-50mm, f/2-f/4",
       "palette_dominante": "chauds terreux, bois clair, vert sauge, blanc",
       "sujets_types": "appartements, quartiers genevois, cartons demenagement, documents administratifs",
@@ -262,33 +202,18 @@
       "secteur": "Courtage assurance / LAMal / LPP / LCA",
       "ton": "Direct, comparatif, anti-jargon. B2B et particuliers.",
       "public": "PME, professions liberales, particuliers, frontaliers, familles",
-      "palette": [
-        "#1a1a2e",
-        "#2c5f7c",
-        "#c9a84c",
-        "#f5f5f0"
-      ],
+      "palette": ["#1a1a2e", "#2c5f7c", "#c9a84c", "#f5f5f0"],
       "exemples_articles": "Comparatif LAMal, assurance RC entreprise, LPP optimisation, frontaliers CMU vs LAMal"
     },
     "sources": "finma.ch, bag.admin.ch, ofas.admin.ch, suva.ch, fedlex.admin.ch",
-    "personas": [
-      "Philippe Dufour",
-      "Nathalie Berger"
-    ],
-    "fallbackCompetitors": [
-      "swisslife.ch",
-      "axa.ch",
-      "helvetia.ch"
-    ],
+    "personas": ["Philippe Dufour", "Nathalie Berger"],
+    "fallbackCompetitors": ["swisslife.ch", "axa.ch", "helvetia.ch"],
     "sanity": {
       "documentType": "blogPost"
     },
     "imageStyle": {
       "secteurRef": "FINANCE / BANQUE / ASSURANCE",
-      "appareils": [
-        "Canon R5",
-        "Leica Q2"
-      ],
+      "appareils": ["Canon R5", "Leica Q2"],
       "focales": "35-50mm, f/2.8-f/4",
       "palette_dominante": "gris anthracite, bleu marine, or, blanc casse",
       "sujets_types": "espaces de travail, contrats, ecrans comparatifs, bureaux conseil",
@@ -316,32 +241,18 @@
       "secteur": "Automobile / actualites auto",
       "ton": "Dynamique, pratique, comparatif. Essais, tendances, conseils.",
       "public": "Automobilistes suisses, passionnes auto, acheteurs",
-      "palette": [
-        "#1a1a2e",
-        "#FB923C",
-        "#f5f5f0",
-        "#4a4a4a"
-      ],
+      "palette": ["#1a1a2e", "#FB923C", "#f5f5f0", "#4a4a4a"],
       "exemples_articles": "Essai vehicule, comparatif SUV, entretien auto, marche occasion Suisse"
     },
     "sources": "tcs.ch, bpa.ch, astra.admin.ch, auto-suisse.ch",
-    "personas": [
-      "Expert Automobile"
-    ],
-    "fallbackCompetitors": [
-      "autoscout24.ch",
-      "tcs.ch",
-      "automobile-magazine.fr"
-    ],
+    "personas": ["Expert Automobile"],
+    "fallbackCompetitors": ["autoscout24.ch", "tcs.ch", "automobile-magazine.fr"],
     "sanity": {
       "documentType": "blogPost"
     },
     "imageStyle": {
       "secteurRef": "AUTOMOBILE / TRANSPORT",
-      "appareils": [
-        "Sony A7IV",
-        "Canon R5"
-      ],
+      "appareils": ["Sony A7IV", "Canon R5"],
       "focales": "24-70mm, f/2.8",
       "palette_dominante": "gris metallique, orange, noir, blanc",
       "sujets_types": "vehicules, routes suisses, garages, tableaux de bord",
@@ -368,32 +279,18 @@
       "secteur": "Immobilier / vente / location / gestion",
       "ton": "Professionnel, expert, ancrage genevois. Marche local, expertise terrain.",
       "public": "Proprietaires, acheteurs, locataires, investisseurs immobiliers a Geneve",
-      "palette": [
-        "#1a1a2e",
-        "#F472B6",
-        "#f5f5f0",
-        "#4a4a4a"
-      ],
+      "palette": ["#1a1a2e", "#F472B6", "#f5f5f0", "#4a4a4a"],
       "exemples_articles": "Prix immobilier Geneve, acheter appartement Geneve, gestion locative, estimation bien"
     },
     "sources": "ge.ch/logement, fedlex.admin.ch, bfs.admin.ch, asloca.ch, uspi.ch",
-    "personas": [
-      "Expert Immobilier"
-    ],
-    "fallbackCompetitors": [
-      "homegate.ch",
-      "immoscout24.ch",
-      "naef.ch"
-    ],
+    "personas": ["Expert Immobilier"],
+    "fallbackCompetitors": ["homegate.ch", "immoscout24.ch", "naef.ch"],
     "sanity": {
       "documentType": "immobiliereBlogPost"
     },
     "imageStyle": {
       "secteurRef": "IMMOBILIER / ARCHITECTURE",
-      "appareils": [
-        "Sony A7IV",
-        "Canon R5"
-      ],
+      "appareils": ["Sony A7IV", "Canon R5"],
       "focales": "16-35mm, f/2.8-f/4",
       "palette_dominante": "blanc, rose poudre, gris clair, bois naturel",
       "sujets_types": "appartements, immeubles genevois, interieurs, vues lac",

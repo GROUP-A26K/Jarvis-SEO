@@ -136,7 +136,13 @@ function getSiteStableSources(site) {
  */
 function getSiteExhibitStyle(site) {
   const config = getSiteConfig(site);
-  return (config && config.exhibitStyle) || { accentColor: '#1a1a2e', accentColorLight: '#f0f0f0', geminiDirective: '' };
+  return (
+    (config && config.exhibitStyle) || {
+      accentColor: '#1a1a2e',
+      accentColorLight: '#f0f0f0',
+      geminiDirective: '',
+    }
+  );
 }
 
 module.exports = {

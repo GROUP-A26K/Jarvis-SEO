@@ -6,10 +6,10 @@ Ce document définit les pratiques Git, les conventions de code, et le workflow 
 
 ## 1. Dépôts
 
-| Repo | Stack | Deploy | URL |
-|------|-------|--------|-----|
-| `Jarvis-Calendar` | React JSX + Supabase + Vercel | Vercel (auto on push main) | jarvis-calendar.vercel.app |
-| `Jarvis-SEO` | Node.js + Anthropic API + Sanity | GitHub Actions | Déclenché par jarvis_tasks |
+| Repo              | Stack                            | Deploy                     | URL                        |
+| ----------------- | -------------------------------- | -------------------------- | -------------------------- |
+| `Jarvis-Calendar` | React JSX + Supabase + Vercel    | Vercel (auto on push main) | jarvis-calendar.vercel.app |
+| `Jarvis-SEO`      | Node.js + Anthropic API + Sanity | GitHub Actions             | Déclenché par jarvis_tasks |
 
 Les deux repos partagent la même base Supabase (PostgreSQL, Auth, RLS, Storage, Realtime, Edge Functions).
 
@@ -37,15 +37,16 @@ migration/<nom-court>          # Migration SQL Supabase
 
 **Scopes principaux :**
 
-| Scope | Périmètre |
-|-------|-----------|
-| `webapp` | React frontend (calendrier, publications, SlidePanel, dashboard, users) |
-| `api` | Edge Functions Supabase (admin-auth, admin-users, email-service, trigger-generation) |
-| `db` | Schema SQL, migrations, RLS policies, triggers |
-| `seo` | Pipeline Jarvis SEO (articles, exhibits, publishing) |
-| `infra` | Vercel config, GitHub Actions, Supabase config, secrets |
+| Scope    | Périmètre                                                                            |
+| -------- | ------------------------------------------------------------------------------------ |
+| `webapp` | React frontend (calendrier, publications, SlidePanel, dashboard, users)              |
+| `api`    | Edge Functions Supabase (admin-auth, admin-users, email-service, trigger-generation) |
+| `db`     | Schema SQL, migrations, RLS policies, triggers                                       |
+| `seo`    | Pipeline Jarvis SEO (articles, exhibits, publishing)                                 |
+| `infra`  | Vercel config, GitHub Actions, Supabase config, secrets                              |
 
 **Exemples :**
+
 ```
 feature/webapp-kanban-view
 fix/api-reset-password-401
@@ -55,6 +56,7 @@ migration/add-admin-actions-log
 ```
 
 **Règles :**
+
 - Anglais, minuscule, tirets, pas d'accents ni d'espaces.
 - 1 sujet par branche — pas de fourre-tout.
 - Supprimer la branche après merge.
@@ -85,18 +87,19 @@ git push -u origin feature/<scope>-<nom-court>
 
 **Types :**
 
-| Type | Usage |
-|------|-------|
-| `feat` | Nouvelle fonctionnalité |
-| `fix` | Correction de bug |
-| `refactor` | Refactorisation sans changement fonctionnel |
-| `chore` | Tooling, CI, config |
-| `docs` | Documentation (CLAUDE.md, README, SECURITY.md) |
-| `test` | Tests |
-| `security` | Fix de sécurité, RLS, RBAC |
-| `migration` | Migration SQL |
+| Type        | Usage                                          |
+| ----------- | ---------------------------------------------- |
+| `feat`      | Nouvelle fonctionnalité                        |
+| `fix`       | Correction de bug                              |
+| `refactor`  | Refactorisation sans changement fonctionnel    |
+| `chore`     | Tooling, CI, config                            |
+| `docs`      | Documentation (CLAUDE.md, README, SECURITY.md) |
+| `test`      | Tests                                          |
+| `security`  | Fix de sécurité, RLS, RBAC                     |
+| `migration` | Migration SQL                                  |
 
 **Bons exemples :**
+
 ```
 feat(webapp): add Kanban pipeline view with drag & drop
 fix(api): reset password 401 — deploy with --no-verify-jwt
@@ -107,6 +110,7 @@ docs: update CLAUDE.md with SlidePanel, exhibits, corbeille
 ```
 
 **Mauvais exemples :**
+
 ```
 update code                     # trop vague
 fix stuff                       # aucun contexte
@@ -134,24 +138,29 @@ feat: ajouté le kanban          # français dans le message
 
 ```markdown
 ## Contexte
+
 [Quel problème / besoin business]
 
 ## Changements
+
 - [Liste courte des modifications principales]
 
 ## Impact
+
 - [ ] Migration SQL nécessaire
 - [ ] Edge Function à redéployer
 - [ ] Secrets à configurer
 - [ ] Breaking change
 
 ## Tests effectués
+
 - [ ] Build OK (`npm run build`)
 - [ ] Test manuel dans l'app
 - [ ] Edge Functions testées (curl ou app)
 - [ ] Vérifications grep (comptage occurrences)
 
 ## Screenshots
+
 [Si changement visuel]
 ```
 
@@ -268,6 +277,7 @@ supabase secrets set KEY=VALUE                      # Configurer un secret
 ### Gestion d'erreur
 
 Toujours retourner des erreurs structurées :
+
 ```json
 { "error": { "code": "USER_NOT_FOUND", "message": "User not found" } }
 ```
@@ -284,27 +294,27 @@ Toute action admin est loggée dans `admin_actions_log` via `auditLog()`.
 
 ### Secrets Supabase (Edge Functions)
 
-| Secret | Usage |
-|--------|-------|
-| `SUPABASE_URL` | Auto-injecté |
-| `SUPABASE_SERVICE_ROLE_KEY` | Auto-injecté |
-| `SUPABASE_ANON_KEY` | Auto-injecté |
-| `ALLOWED_ORIGIN` | CORS : `https://jarvis-calendar.vercel.app` |
-| `RESEND_API_KEY` | Envoi d'emails via Resend |
-| `RESEND_FROM_DOMAIN` | `a26k.ch` |
-| `INTERNAL_FUNCTION_SECRET` | Auth inter-fonctions (email-service) |
-| `GITHUB_PAT` | Déclencher GitHub Actions (trigger-generation) |
+| Secret                      | Usage                                          |
+| --------------------------- | ---------------------------------------------- |
+| `SUPABASE_URL`              | Auto-injecté                                   |
+| `SUPABASE_SERVICE_ROLE_KEY` | Auto-injecté                                   |
+| `SUPABASE_ANON_KEY`         | Auto-injecté                                   |
+| `ALLOWED_ORIGIN`            | CORS : `https://jarvis-calendar.vercel.app`    |
+| `RESEND_API_KEY`            | Envoi d'emails via Resend                      |
+| `RESEND_FROM_DOMAIN`        | `a26k.ch`                                      |
+| `INTERNAL_FUNCTION_SECRET`  | Auth inter-fonctions (email-service)           |
+| `GITHUB_PAT`                | Déclencher GitHub Actions (trigger-generation) |
 
 ### GitHub Secrets (Jarvis-SEO)
 
-| Secret | Usage |
-|--------|-------|
-| `SUPABASE_URL` | Connexion Supabase |
-| `SUPABASE_SERVICE_ROLE_KEY` | Client service_role |
-| `ANTHROPIC_API_KEY` | API Claude pour génération d'articles |
-| `SANITY_PROJECT_ID` | Publication sur Sanity CMS |
-| `SANITY_TOKEN` | Auth Sanity |
-| `RESEND_API_KEY` | Notifications email |
+| Secret                      | Usage                                 |
+| --------------------------- | ------------------------------------- |
+| `SUPABASE_URL`              | Connexion Supabase                    |
+| `SUPABASE_SERVICE_ROLE_KEY` | Client service_role                   |
+| `ANTHROPIC_API_KEY`         | API Claude pour génération d'articles |
+| `SANITY_PROJECT_ID`         | Publication sur Sanity CMS            |
+| `SANITY_TOKEN`              | Auth Sanity                           |
+| `RESEND_API_KEY`            | Notifications email                   |
 
 ### Règles
 
@@ -329,14 +339,14 @@ grep "import.*from" webapp/file.jsx    # Vérifier les imports
 
 ### Tests manuels requis
 
-| Zone | Quoi tester |
-|------|-------------|
-| Auth | Login, logout, session expirée, invitation, set password |
-| RBAC | Actions admin cachées pour les members |
-| Publications | Créer, éditer, supprimer, archiver, restaurer |
-| Jarvis SEO | Générer brouillon, infographie, publier site |
-| Email | Reset password, invitation, notifications |
-| Realtime | Changements reflétés en live dans le SlidePanel |
+| Zone         | Quoi tester                                              |
+| ------------ | -------------------------------------------------------- |
+| Auth         | Login, logout, session expirée, invitation, set password |
+| RBAC         | Actions admin cachées pour les members                   |
+| Publications | Créer, éditer, supprimer, archiver, restaurer            |
+| Jarvis SEO   | Générer brouillon, infographie, publier site             |
+| Email        | Reset password, invitation, notifications                |
+| Realtime     | Changements reflétés en live dans le SlidePanel          |
 
 ### Tests Jarvis SEO
 
@@ -348,18 +358,18 @@ cd Jarvis-SEO && node tests/test-all.js
 
 ## 11. RBAC — Matrice des permissions
 
-| Action | super_admin | admin | member |
-|--------|-------------|-------|--------|
-| Voir publications (ses sites) | ✓ | ✓ | ✓ |
-| Voir publications (tous sites) | ✓ | ✗ | ✗ |
-| Créer publication | ✓ | ✓ | ✓ (draft uniquement) |
-| Modifier publication | ✓ | ✓ | ✓ (ses sites) |
-| Supprimer publication | ✓ | ✓ | ✗ |
-| Générer avec Jarvis | ✓ | ✓ | ✗ |
-| Publier sur Sanity | ✓ | ✓ | ✗ |
-| Gérer utilisateurs | ✓ | ✗ | ✗ |
-| Voir audit log | ✓ | ✗ | ✗ |
-| Configurer sites | ✓ | ✗ | ✗ |
+| Action                         | super_admin | admin | member               |
+| ------------------------------ | ----------- | ----- | -------------------- |
+| Voir publications (ses sites)  | ✓           | ✓     | ✓                    |
+| Voir publications (tous sites) | ✓           | ✗     | ✗                    |
+| Créer publication              | ✓           | ✓     | ✓ (draft uniquement) |
+| Modifier publication           | ✓           | ✓     | ✓ (ses sites)        |
+| Supprimer publication          | ✓           | ✓     | ✗                    |
+| Générer avec Jarvis            | ✓           | ✓     | ✗                    |
+| Publier sur Sanity             | ✓           | ✓     | ✗                    |
+| Gérer utilisateurs             | ✓           | ✗     | ✗                    |
+| Voir audit log                 | ✓           | ✗     | ✗                    |
+| Configurer sites               | ✓           | ✗     | ✗                    |
 
 ---
 
@@ -394,17 +404,17 @@ cd Jarvis-SEO && node tests/test-all.js
 
 ## 13. Les 9 sites A26K
 
-| Slug | Nom | Short | Couleur |
-|------|-----|-------|---------|
-| fg | Fiduciaire Genevoise | FG | Bleu |
-| fv | Fiduciaire Vaudoise | FV | Bleu |
-| ag | Assurance Genevoise | AG | Orange |
-| rg | Relocation Genevoise | RG | Bleu |
-| mc | Medcourtage | MC | Vert |
-| am | Automotoplus | AM | Orange |
-| gl | Golamal | GL | Rouge |
-| pf | Prepafa | PF | Vert |
-| ig | Immobilière Genevoise | IG | Rose |
+| Slug | Nom                   | Short | Couleur |
+| ---- | --------------------- | ----- | ------- |
+| fg   | Fiduciaire Genevoise  | FG    | Bleu    |
+| fv   | Fiduciaire Vaudoise   | FV    | Bleu    |
+| ag   | Assurance Genevoise   | AG    | Orange  |
+| rg   | Relocation Genevoise  | RG    | Bleu    |
+| mc   | Medcourtage           | MC    | Vert    |
+| am   | Automotoplus          | AM    | Orange  |
+| gl   | Golamal               | GL    | Rouge   |
+| pf   | Prepafa               | PF    | Vert    |
+| ig   | Immobilière Genevoise | IG    | Rose    |
 
 Chaque site a son `sanity_document_type` dans la table `websites` et son `config.json` dans Jarvis-SEO.
 
@@ -413,17 +423,20 @@ Chaque site a son `sanity_document_type` dans la table `websites` et son `config
 ## 14. Évolution future
 
 ### Court terme
+
 - Ajouter des tests unitaires (Vitest pour la webapp, Jest pour Jarvis SEO).
 - Ajouter un linter (ESLint + Prettier) avec pre-commit hook.
 - CI GitHub Actions : build + lint + test sur chaque PR.
 
 ### Moyen terme
+
 - Branche `develop` pour staging avant production.
 - Branches `release/x.y.z` pour les versions.
 - Monitoring (Sentry pour les erreurs frontend, Supabase logs pour le backend).
 - Rate limiting avancé (Redis au lieu de in-memory).
 
 ### Long terme
+
 - Tests end-to-end (Playwright).
 - Déploiement multi-environnement (staging, production).
 - Documentation API (OpenAPI/Swagger pour les Edge Functions).

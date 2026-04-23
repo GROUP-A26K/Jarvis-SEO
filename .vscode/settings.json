@@ -1,0 +1,51 @@
+{
+  "workbench.colorCustomizations": {
+    "titleBar.activeBackground": "#2D1B2E",
+    "titleBar.activeForeground": "#FFFFFF",
+    "titleBar.inactiveBackground": "#3F2A40",
+    "titleBar.inactiveForeground": "#FFFFFF",
+    "activityBar.background": "#10B981",
+    "activityBar.foreground": "#FFFFFF",
+    "activityBarBadge.background": "#2D1B2E",
+    "activityBarBadge.foreground": "#FFFFFF",
+    "statusBar.background": "#10B981",
+    "statusBar.foreground": "#FFFFFF",
+    "statusBarItem.hoverBackground": "#2D1B2E"
+  },
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit",
+    "source.organizeImports": "never"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[yaml]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "prettier.requireConfig": true,
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+  "eslint.validate": ["javascript"],
+  "eslint.workingDirectories": [
+    {
+      "mode": "auto"
+    }
+  ],
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/package-lock.json": true
+  }
+}

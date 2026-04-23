@@ -15,6 +15,7 @@ entrypoints `workflow-*.js` à la racine de `scripts/`.
 ## Règles de dépendance
 
 Un handler peut importer :
+
 - `scripts/lib/*` (primitives pures — niveau DAG 0-4)
 - `scripts/seo-shared.js` (re-exporter des primitives de lib, équivalent)
 - `scripts/calendar-connector.js` (adapter Supabase, à migrer vers `scripts/adapters/` plus tard)
@@ -22,6 +23,7 @@ Un handler peut importer :
 - `scripts/seo-publish-article.js` exports (`publishToSanity`, `uploadImageToSanity` — à migrer)
 
 Un handler ne doit **jamais** :
+
 - Être importé depuis `scripts/lib/*` (casserait le DAG de la lib pure)
 - Importer un autre handler (évite les cycles — si besoin de logique partagée,
   extraire vers un helper privé au module ou une primitive dans `lib/`)
@@ -29,10 +31,11 @@ Un handler ne doit **jamais** :
 ## Convention d'appel
 
 Les handlers acceptent tous la signature `(task|pub, ctx)` :
+
 - `task` ou `pub` : la ligne Supabase à traiter
 - `ctx` : un objet contenant toutes les dépendances du handler (client Supabase,
   fonctions d'adapter, flags de comportement). Dépendance injection explicite,
-  pas de singletons. Le dispatcher (workflow-*.js) construit le ctx et l'injecte.
+  pas de singletons. Le dispatcher (workflow-\*.js) construit le ctx et l'injecte.
 
 Les handlers throw sur erreur inattendue. Le dispatcher attrape et décide (compter,
 continuer, exit).
@@ -42,6 +45,7 @@ continuer, exit).
 `task-handlers.js` expose **6 symboles** :
 
 ### Helpers purs
+
 - `runArticle(site, keyword, flags, apiKey, taskId)` — lance le pipeline SEO
   via `execFileSync` et lit le TaskResult JSON (PR 0.3). Retourne
   `{ stdout, result, outputJsonPath, execError }`.
@@ -49,6 +53,7 @@ continuer, exit).
   HTML de notification post-publication réussie.
 
 ### Handlers business
+
 - `handleScheduledPublication(pub, ctx)` — traite une publication planifiée
   depuis le cron quotidien. **Daily-only**. Retourne `'published' | 'skipped'`.
 - `handlePublishDraft(task, ctx)` — publie un `draft_content` existant vers

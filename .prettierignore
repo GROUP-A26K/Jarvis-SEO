@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Lockfiles (managed by npm)
+package-lock.json
+
+# Env files
+.env
+.env.*
+
+# Runtime state (locks, cache, tracking dumps)
+.state/
+.cache/
+tmp/
+
+# Generated exhibit images and JSON dumps kept verbatim
+generated/
+
+# Logs & backups
+*.log
+*.bak
+*.bak.*
+*.tmp.*
+
+# OS
+.DS_Store

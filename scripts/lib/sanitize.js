@@ -16,15 +16,25 @@ function esc(s) {
 }
 
 function sanitize(str) {
-  return String(str || '').replace(/[^\w\s\-\.àâäéèêëïîôùûüç]/gi, '').trim();
+  return String(str || '')
+    .replace(/[^\w\s\-\.àâäéèêëïîôùûüç]/gi, '')
+    .trim();
 }
 
 function sanitizeFilename(str) {
-  return String(str || '').toLowerCase()
-    .replace(/[éèêë]/g, 'e').replace(/[àâä]/g, 'a').replace(/[ùûü]/g, 'u')
-    .replace(/[îï]/g, 'i').replace(/[ôö]/g, 'o').replace(/[ç]/g, 'c')
-    .replace(/[\s_]+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-')
-    .replace(/^-|-$/g, '').slice(0, 60);
+  return String(str || '')
+    .toLowerCase()
+    .replace(/[éèêë]/g, 'e')
+    .replace(/[àâä]/g, 'a')
+    .replace(/[ùûü]/g, 'u')
+    .replace(/[îï]/g, 'i')
+    .replace(/[ôö]/g, 'o')
+    .replace(/[ç]/g, 'c')
+    .replace(/[\s_]+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 60);
 }
 
 function sanitizeSlug(str) {

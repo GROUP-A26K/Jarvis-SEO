@@ -29,8 +29,9 @@ async function main() {
 
   // This will propagate up to main().catch() and be captured by sentry.fatal()
   throw new Error(
-    'Sentry smoke test PR 0.1b — ' + new Date().toISOString() +
-    ' — if you see this in Sentry UI, the integration works.'
+    'Sentry smoke test PR 0.1b — ' +
+      new Date().toISOString() +
+      ' — if you see this in Sentry UI, the integration works.',
   );
 }
 

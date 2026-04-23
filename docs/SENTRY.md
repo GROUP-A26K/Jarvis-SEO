@@ -13,6 +13,7 @@ handles `flush()` before `process.exit()` via the `fatal()` helper.
 ## Configuration
 
 ### Environments
+
 - `production` - GitHub Actions runs (daily cron + on-demand workflow_dispatch)
 - `development` - local runs (Sentry disabled by default, no events sent)
 
@@ -21,8 +22,8 @@ for this repo (scripts only run in CI or locally).
 
 ### GitHub Secrets
 
-| Secret | Where | Purpose |
-|---|---|---|
+| Secret           | Where       | Purpose                     |
+| ---------------- | ----------- | --------------------------- |
 | `SENTRY_DSN_SEO` | Repo secret | Client DSN for @sentry/node |
 
 No `SENTRY_AUTH_TOKEN` needed (no sourcemaps to upload - Node stack traces
@@ -48,6 +49,7 @@ Sentry is disabled locally by default because `SENTRY_ENVIRONMENT` is
 unset (defaults to `development`), which short-circuits the init.
 
 To test Sentry locally (optional):
+
 ```sh
 export SENTRY_DSN_SEO=https://xxx@oxxx.ingest.de.sentry.io/xxx
 export SENTRY_ENVIRONMENT=staging
@@ -97,7 +99,7 @@ sentry.addBreadcrumb({
   category: 'sanity',
   message: 'Publishing article to Sanity',
   level: 'info',
-  data: { site: 'ag', docId: 'article-xxx' }
+  data: { site: 'ag', docId: 'article-xxx' },
 });
 ```
 

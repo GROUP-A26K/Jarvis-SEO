@@ -16,11 +16,22 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const {
-  PATHS, CLAUDE_MODEL, logger, ensureDir,
-  callClaudeWithRetry, extractClaudeText, requireAnthropicKey, getApiKey,
-  sanitizeSlug, sanitizeErrorMessage,
-  readJSONSafe, writeJSONAtomic,
-  TIMEOUTS, circuitBreakers, getSiteConfig, getSiteExhibitStyle,
+  PATHS,
+  CLAUDE_MODEL,
+  logger,
+  ensureDir,
+  callClaudeWithRetry,
+  extractClaudeText,
+  requireAnthropicKey,
+  getApiKey,
+  sanitizeSlug,
+  sanitizeErrorMessage,
+  readJSONSafe,
+  writeJSONAtomic,
+  TIMEOUTS,
+  circuitBreakers,
+  getSiteConfig,
+  getSiteExhibitStyle,
 } = require('./seo-shared');
 
 const EXHIBITS_DIR = path.join(PATHS.images, 'exhibits');
@@ -30,7 +41,14 @@ const MAX_CLAUDE_STYLE_RETRIES = 2; // Pipeline 3b: max retries pour Claude SVG 
 // EXHIBIT TYPES
 // ═══════════════════════════════════════════════════════════════
 
-const EXHIBIT_TYPES = ['comparison', 'process', 'breakdown', 'ranking', 'metric_highlight', 'matrix'];
+const EXHIBIT_TYPES = [
+  'comparison',
+  'process',
+  'breakdown',
+  'ranking',
+  'metric_highlight',
+  'matrix',
+];
 
 // ═══════════════════════════════════════════════════════════════
 // AGENT 0 — Exhibit Planning (integrated into image Agent 0)
@@ -41,7 +59,7 @@ const EXHIBIT_TYPES = ['comparison', 'process', 'breakdown', 'ranking', 'metric_
  * Returns an array of exhibit briefs.
  */
 async function planExhibits(apiKey, articleText, siteContext, keyword) {
-  logger.info('Exhibit Agent 0: analyse de l\'article pour exhibits');
+  logger.info("Exhibit Agent 0: analyse de l'article pour exhibits");
 
   const system = `Tu es un directeur editorial pour un cabinet de conseil suisse.
 Tu analyses un article SEO et identifies les "moments de preuve" — les passages
@@ -84,9 +102,13 @@ Si aucun exhibit n'est pertinent, retourne: { "exhibits": [] }`;
 
   try {
     const resp = await callClaudeWithRetry(apiKey, system, user, 1500);
-    const text = extractClaudeText(resp).replace(/```json\s?|```/g, '').trim();
+    const text = extractClaudeText(resp)
+      .replace(/```json\s?|```/g, '')
+      .trim();
     const parsed = JSON.parse(text);
-    const exhibits = (parsed.exhibits || []).filter((e) => EXHIBIT_TYPES.includes(e.type)).slice(0, 2);
+    const exhibits = (parsed.exhibits || [])
+      .filter((e) => EXHIBIT_TYPES.includes(e.type))
+      .slice(0, 2);
     logger.info(`Exhibit Agent 0: ${exhibits.length} exhibit(s) identifies`);
     return exhibits;
   } catch (e) {
@@ -186,10 +208,14 @@ Pour "matrix":
 
   try {
     const resp = await callClaudeWithRetry(apiKey, system, user, 2000);
-    const text = extractClaudeText(resp).replace(/```json\s?|```/g, '').trim();
+    const text = extractClaudeText(resp)
+      .replace(/```json\s?|```/g, '')
+      .trim();
     const data = JSON.parse(text);
     if (!data.type || !data.title) throw new Error('JSON exhibit invalide');
-    logger.info(`Pipeline 2: donnees extraites (${data.type}), ${JSON.stringify(data).length} chars`);
+    logger.info(
+      `Pipeline 2: donnees extraites (${data.type}), ${JSON.stringify(data).length} chars`,
+    );
     return data;
   } catch (e) {
     logger.warn(`Pipeline 2 echoue: ${e.message}`);
@@ -297,8 +323,8 @@ POUR TYPE "matrix":
 
     // Sanitize SVG — remove any script/event handlers that could cause XSS
     svg = svg.replace(/<script[\s\S]*?<\/script>/gi, '');
-    svg = svg.replace(/\bon\w+\s*=\s*["'][^"']*["']/gi, '');       // onclick, onload, etc.
-    svg = svg.replace(/javascript\s*:/gi, 'blocked:');               // javascript: URLs
+    svg = svg.replace(/\bon\w+\s*=\s*["'][^"']*["']/gi, ''); // onclick, onload, etc.
+    svg = svg.replace(/javascript\s*:/gi, 'blocked:'); // javascript: URLs
     svg = svg.replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, ''); // foreignObject can embed HTML
     svg = svg.replace(/xlink:href\s*=\s*["']javascript:[^"']*["']/gi, ''); // xlink javascript
 
@@ -329,15 +355,30 @@ POUR TYPE "matrix":
  * - Ensure root <svg> is closed
  */
 function repairSVG(svg) {
-  const selfClosing = new Set(['circle', 'ellipse', 'line', 'path', 'polygon', 'polyline', 'rect', 'use', 'image', 'stop', 'animate']);
+  const selfClosing = new Set([
+    'circle',
+    'ellipse',
+    'line',
+    'path',
+    'polygon',
+    'polyline',
+    'rect',
+    'use',
+    'image',
+    'stop',
+    'animate',
+  ]);
   const voidTags = new Set([...selfClosing]);
   const stack = [];
   // Simple tag-balance repair: find unclosed tags
   const openRe = /<([a-zA-Z][a-zA-Z0-9]*)[^>]*(?<!\/)>/g;
   const closeRe = /<\/([a-zA-Z][a-zA-Z0-9]*)>/g;
-  const opens = []; const closes = [];
+  const opens = [];
+  const closes = [];
   let m;
-  while ((m = openRe.exec(svg)) !== null) { if (!voidTags.has(m[1].toLowerCase())) opens.push(m[1].toLowerCase()); }
+  while ((m = openRe.exec(svg)) !== null) {
+    if (!voidTags.has(m[1].toLowerCase())) opens.push(m[1].toLowerCase());
+  }
   while ((m = closeRe.exec(svg)) !== null) closes.push(m[1].toLowerCase());
   // Count unmatched opens
   const countMap = {};
@@ -360,8 +401,12 @@ function repairSVG(svg) {
 
 async function rasterizeSVG(svgString) {
   let sharp;
-  try { sharp = require('sharp'); }
-  catch { logger.warn('Sharp non installe, rasterisation impossible'); return null; }
+  try {
+    sharp = require('sharp');
+  } catch {
+    logger.warn('Sharp non installe, rasterisation impossible');
+    return null;
+  }
 
   try {
     const svgBuffer = Buffer.from(svgString, 'utf-8');
@@ -373,7 +418,9 @@ async function rasterizeSVG(svgString) {
     return pngBuffer;
   } catch (e) {
     // Tentative de réparation SVG avant d'abandonner
-    logger.warn(`Rasterisation echouee (${e.message.slice(0, 80)}), tentative de reparation SVG...`);
+    logger.warn(
+      `Rasterisation echouee (${e.message.slice(0, 80)}), tentative de reparation SVG...`,
+    );
     try {
       const repairedSvg = repairSVG(svgString);
       const pngBuffer = await sharp(Buffer.from(repairedSvg, 'utf-8'), { density: 192 })
@@ -460,7 +507,10 @@ CONTRAINTE TECHNIQUE :
     if (!styledSvg.startsWith('<svg')) {
       const match = styledSvg.match(/<svg[\s\S]*/);
       if (match) styledSvg = match[0];
-      else { logger.warn('Pipeline 3b: Claude n\'a pas retourné de SVG valide'); return null; }
+      else {
+        logger.warn("Pipeline 3b: Claude n'a pas retourné de SVG valide");
+        return null;
+      }
     }
 
     // Ensure closing tag
@@ -470,7 +520,10 @@ CONTRAINTE TECHNIQUE :
     }
 
     // Size sanity check
-    if (styledSvg.length < 500) { logger.warn('Pipeline 3b: SVG stylisé trop court — ignoré'); return null; }
+    if (styledSvg.length < 500) {
+      logger.warn('Pipeline 3b: SVG stylisé trop court — ignoré');
+      return null;
+    }
 
     logger.info(`Pipeline 3b: SVG stylisé (${styledSvg.length} chars)`);
     return styledSvg;
@@ -601,16 +654,22 @@ REGLES DE VERDICT:
 
   try {
     const resp = await callClaudeWithRetry(apiKey, system, user, 1500);
-    const text = extractClaudeText(resp).replace(/```json\s?|```/g, '').trim();
+    const text = extractClaudeText(resp)
+      .replace(/```json\s?|```/g, '')
+      .trim();
     const result = JSON.parse(text);
 
     const verdict = result.verdict || 'FAIL';
     const recommendation = result.recommendation || 'use_source';
 
-    logger.info(`Agent 3: verdict=${verdict} recommendation=${recommendation} text=${result.text_integrity?.score}/10 layout=${result.layout_integrity?.score}/10 lisibilite=${result.legibility?.score}/10`);
+    logger.info(
+      `Agent 3: verdict=${verdict} recommendation=${recommendation} text=${result.text_integrity?.score}/10 layout=${result.layout_integrity?.score}/10 lisibilite=${result.legibility?.score}/10`,
+    );
 
     if (result.text_integrity?.differences?.length > 0) {
-      logger.warn(`Agent 3: differences detectees: ${result.text_integrity.differences.join('; ')}`);
+      logger.warn(
+        `Agent 3: differences detectees: ${result.text_integrity.differences.join('; ')}`,
+      );
     }
 
     return { verdict, recommendation, details: result };
@@ -678,8 +737,12 @@ async function processExhibit(apiKey, articleText, exhibitBrief, keyword, site, 
   if (dryRun) {
     logger.info(`Exhibit ${exhibitNum}: dry-run — SVG + PNG source generes`);
     return {
-      filename: `${baseFilename}-source.png`, altText: exhibitData.title,
-      verified: false, usedClaudeStyle: false, svgPath, pngPath: sourcePngPath,
+      filename: `${baseFilename}-source.png`,
+      altText: exhibitData.title,
+      verified: false,
+      usedClaudeStyle: false,
+      svgPath,
+      pngPath: sourcePngPath,
     };
   }
 
@@ -741,7 +804,9 @@ async function processExhibit(apiKey, articleText, exhibitBrief, keyword, site, 
   const finalPngPath = path.join(EXHIBITS_DIR, `${baseFilename}.png`);
   fs.writeFileSync(finalPngPath, finalPng);
 
-  logger.info(`Exhibit ${exhibitNum}: terminé — ${usedClaudeStyle ? 'Claude stylisé' : 'SVG source'} (${(finalPng.length / 1024).toFixed(0)}KB)`);
+  logger.info(
+    `Exhibit ${exhibitNum}: terminé — ${usedClaudeStyle ? 'Claude stylisé' : 'SVG source'} (${(finalPng.length / 1024).toFixed(0)}KB)`,
+  );
 
   return {
     filename: `${baseFilename}.png`,
@@ -790,7 +855,9 @@ async function generateExhibits(articleText, siteContext, keyword, site, slug, d
     }
   }
 
-  logger.info(`Exhibits: ${results.length}/${briefs.length} generes (${results.filter((r) => r.usedClaudeStyle).length} avec Claude style)`);
+  logger.info(
+    `Exhibits: ${results.length}/${briefs.length} generes (${results.filter((r) => r.usedClaudeStyle).length} avec Claude style)`,
+  );
   return results;
 }
 
@@ -812,9 +879,14 @@ Le transfert d'actions SA est libre, celui de parts Sàrl nécessite un acte not
 Coût notaire SA: CHF 2'500 à 4'000. Coût notaire Sàrl: CHF 1'500 à 2'500.
 Source: Art. 620 ss CO (SA) et Art. 772 ss CO (Sàrl) — fedlex.admin.ch`;
 
-    const results = await generateExhibits(testArticle,
+    const results = await generateExhibits(
+      testArticle,
       { secteur: 'Fiduciaire / comptabilite', ton: 'Technique, direct' },
-      'création SA Genève', 'fiduciaire-genevoise.ch', 'creation-sa-geneve', dryRun);
+      'création SA Genève',
+      'fiduciaire-genevoise.ch',
+      'creation-sa-geneve',
+      dryRun,
+    );
 
     console.log(`\n${results.length} exhibit(s) genere(s)`);
     for (const r of results) {
@@ -831,7 +903,10 @@ Source: Art. 620 ss CO (SA) et Art. 772 ss CO (Sàrl) — fedlex.admin.ch`;
 
 // Only run main when executed directly
 if (require.main === module) {
-  main().catch((err) => { console.error(`\n! Fatal: ${err.message}`); process.exit(1); });
+  main().catch((err) => {
+    console.error(`\n! Fatal: ${err.message}`);
+    process.exit(1);
+  });
 }
 
 module.exports = { generateExhibits, planExhibits, processExhibit };

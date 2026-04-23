@@ -1,0 +1,12 @@
+# .git-blame-ignore-revs
+# Commits listed here are ignored by git blame (via --ignore-revs-file).
+# Use for pure-style commits (Prettier reformatting, import sorting, etc.)
+# so that blame shows the real authoring commit instead of the reformat.
+#
+# Enable locally (once per machine):
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# Format: one full 40-char SHA per line. Blank lines and lines starting with # ignored.
+
+# PR 1.2 — Prettier initial reformat across repo (Jarvis-SEO)
+# SHA: add here after commit 3 of PR 1.2 is created
