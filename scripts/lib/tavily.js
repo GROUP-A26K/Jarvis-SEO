@@ -37,39 +37,53 @@ function tavilySearch(query, opts) {
   });
 
   return new Promise((resolve) => {
-    const req = https.request({
-      hostname: 'api.tavily.com',
-      path: '/search',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(body),
+    const req = https.request(
+      {
+        hostname: 'api.tavily.com',
+        path: '/search',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+        },
       },
-    }, (res) => {
-      let data = '';
-      res.on('data', (c) => { data += c; });
-      res.on('end', () => {
-        if (res.statusCode >= 400) {
-          logger.warn(`Tavily ${res.statusCode}: ${data.slice(0, 200)}`);
-          resolve([]);
-          return;
-        }
-        try {
-          const resp = JSON.parse(data);
-          const results = (resp.results || []).map((r) => ({
-            url: r.url,
-            title: r.title || '',
-            content: r.content || '',
-          })).filter((r) => r.url && r.url.startsWith('https://'));
-          resolve(results);
-        } catch (e) {
-          logger.warn(`Tavily parse error: ${e.message}`);
-          resolve([]);
-        }
-      });
+      (res) => {
+        let data = '';
+        res.on('data', (c) => {
+          data += c;
+        });
+        res.on('end', () => {
+          if (res.statusCode >= 400) {
+            logger.warn(`Tavily ${res.statusCode}: ${data.slice(0, 200)}`);
+            resolve([]);
+            return;
+          }
+          try {
+            const resp = JSON.parse(data);
+            const results = (resp.results || [])
+              .map((r) => ({
+                url: r.url,
+                title: r.title || '',
+                content: r.content || '',
+              }))
+              .filter((r) => r.url && r.url.startsWith('https://'));
+            resolve(results);
+          } catch (e) {
+            logger.warn(`Tavily parse error: ${e.message}`);
+            resolve([]);
+          }
+        });
+      },
+    );
+    req.on('error', (e) => {
+      logger.warn(`Tavily error: ${e.message}`);
+      resolve([]);
     });
-    req.on('error', (e) => { logger.warn(`Tavily error: ${e.message}`); resolve([]); });
-    req.setTimeout(15000, () => { req.destroy(); logger.warn('Tavily timeout'); resolve([]); });
+    req.setTimeout(15000, () => {
+      req.destroy();
+      logger.warn('Tavily timeout');
+      resolve([]);
+    });
     req.write(body);
     req.end();
   });

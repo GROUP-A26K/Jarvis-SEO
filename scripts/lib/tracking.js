@@ -33,41 +33,52 @@ function loadUnitsState() {
 }
 
 function trackUnits(type, rowCount) {
-  return withLockedJSON(PATHS.semrushUnits, {
-    planTotal: DEFAULT_PLAN_UNITS, consumed: 0,
-    lastReset: new Date().toISOString().split('T')[0], history: [],
-  }, (state) => {
-    const today = new Date().toISOString().split('T')[0];
-    if ((state.lastReset || '').slice(0, 7) !== today.slice(0, 7)) {
-      state.consumed = 0;
-      state.lastReset = today;
-      state.history = [];
-    }
-    const units = Math.max(10, rowCount * 10);
-    state.consumed += units;
-    state.history.push({ date: new Date().toISOString(), type, rows: rowCount, units });
-    // Session guard — compteur en mémoire (protection anti-boucle)
-    // Lazy require pour eviter un cycle niveau 3 -> niveau 4
-    const { semrushSessionRecord } = require('./semrush');
-    semrushSessionRecord(units);
-    if (state.history.length > 200) state.history = state.history.slice(-200);
+  return withLockedJSON(
+    PATHS.semrushUnits,
+    {
+      planTotal: DEFAULT_PLAN_UNITS,
+      consumed: 0,
+      lastReset: new Date().toISOString().split('T')[0],
+      history: [],
+    },
+    (state) => {
+      const today = new Date().toISOString().split('T')[0];
+      if ((state.lastReset || '').slice(0, 7) !== today.slice(0, 7)) {
+        state.consumed = 0;
+        state.lastReset = today;
+        state.history = [];
+      }
+      const units = Math.max(10, rowCount * 10);
+      state.consumed += units;
+      state.history.push({ date: new Date().toISOString(), type, rows: rowCount, units });
+      // Session guard — compteur en mémoire (protection anti-boucle)
+      // Lazy require pour eviter un cycle niveau 3 -> niveau 4
+      const { semrushSessionRecord } = require('./semrush');
+      semrushSessionRecord(units);
+      if (state.history.length > 200) state.history = state.history.slice(-200);
 
-    const remaining = state.planTotal - state.consumed;
-    const pct = Math.round(state.consumed / state.planTotal * 100);
-    if (pct >= 80) {
-      logger.warn(`SEMRUSH UNITS: ${state.consumed}/${state.planTotal} (${pct}%) — ${remaining} restantes`);
-    }
-    return { consumed: state.consumed, remaining, percentUsed: pct, warning: pct >= 80 };
-  });
+      const remaining = state.planTotal - state.consumed;
+      const pct = Math.round((state.consumed / state.planTotal) * 100);
+      if (pct >= 80) {
+        logger.warn(
+          `SEMRUSH UNITS: ${state.consumed}/${state.planTotal} (${pct}%) — ${remaining} restantes`,
+        );
+      }
+      return { consumed: state.consumed, remaining, percentUsed: pct, warning: pct >= 80 };
+    },
+  );
 }
 
 function printUnitsSummary() {
   const state = loadUnitsState();
-  const pct = Math.min(100, Math.max(0, Math.round(state.consumed / state.planTotal * 100)));
+  const pct = Math.min(100, Math.max(0, Math.round((state.consumed / state.planTotal) * 100)));
   const filled = Math.min(20, Math.round(pct / 5));
   const bar = '\u2588'.repeat(filled) + '\u2591'.repeat(20 - filled);
-  console.log(`\n  Semrush units: ${state.consumed.toLocaleString()}/${state.planTotal.toLocaleString()} [${bar}] ${pct}%`);
-  if (pct >= 80) console.log(`  ! ${(state.planTotal - state.consumed).toLocaleString()} restantes`);
+  console.log(
+    `\n  Semrush units: ${state.consumed.toLocaleString()}/${state.planTotal.toLocaleString()} [${bar}] ${pct}%`,
+  );
+  if (pct >= 80)
+    console.log(`  ! ${(state.planTotal - state.consumed).toLocaleString()} restantes`);
 }
 
 // ─── TRACKED ARTICLES (SQLite + JSON fallback) ──────────────────
@@ -132,9 +143,11 @@ function updateArticleField(articleId, field, value) {
 
 function loadLatestGapAnalysis() {
   ensureDir(PATHS.reports);
-  const files = fs.readdirSync(PATHS.reports)
+  const files = fs
+    .readdirSync(PATHS.reports)
     .filter((f) => f.startsWith('gap-analysis-') && f.endsWith('.json'))
-    .sort().reverse();
+    .sort()
+    .reverse();
   if (!files.length) return null;
   return readJSONSafe(path.join(PATHS.reports, files[0]), null);
 }

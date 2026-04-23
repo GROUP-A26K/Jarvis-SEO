@@ -33,16 +33,24 @@ function acquireLock(filePath, timeoutMs) {
       const lockAge = Date.now() - fs.statSync(lockPath).mtimeMs;
       if (lockAge > 30000) {
         logger.warn(`Lock stale supprime: ${lockPath}`, { age_ms: lockAge });
-        try { fs.unlinkSync(lockPath); } catch { /* race ok */ }
+        try {
+          fs.unlinkSync(lockPath);
+        } catch {
+          /* race ok */
+        }
         break;
       }
-    } catch { break; }
+    } catch {
+      break;
+    }
 
     if (Date.now() - start > timeout) {
       throw new Error(`Lock timeout sur ${filePath} (${timeout}ms)`);
     }
     const waitUntil = Date.now() + 50;
-    while (Date.now() < waitUntil) { /* spin */ }
+    while (Date.now() < waitUntil) {
+      /* spin */
+    }
   }
 
   try {
@@ -54,7 +62,11 @@ function acquireLock(filePath, timeoutMs) {
   _activeLocks.add(lockPath);
 
   return function release() {
-    try { fs.unlinkSync(lockPath); } catch { /* deja supprime */ }
+    try {
+      fs.unlinkSync(lockPath);
+    } catch {
+      /* deja supprime */
+    }
     _activeLocks.delete(lockPath);
   };
 }
@@ -73,21 +85,36 @@ function withLockedJSON(filePath, defaultVal, mutator) {
 
 function cleanupLocks() {
   for (const lockPath of _activeLocks) {
-    try { fs.unlinkSync(lockPath); } catch { /* ok */ }
+    try {
+      fs.unlinkSync(lockPath);
+    } catch {
+      /* ok */
+    }
   }
   _activeLocks.clear();
 }
 
 process.on('exit', cleanupLocks);
-process.on('SIGINT', () => { cleanupLocks(); process.exit(130); });
-process.on('SIGTERM', () => { cleanupLocks(); process.exit(143); });
+process.on('SIGINT', () => {
+  cleanupLocks();
+  process.exit(130);
+});
+process.on('SIGTERM', () => {
+  cleanupLocks();
+  process.exit(143);
+});
 process.on('unhandledRejection', (reason) => {
-  logger.error('Unhandled Promise rejection', { error: reason instanceof Error ? reason.message : String(reason) });
+  logger.error('Unhandled Promise rejection', {
+    error: reason instanceof Error ? reason.message : String(reason),
+  });
   cleanupLocks();
   process.exit(1);
 });
 process.on('uncaughtException', (err) => {
-  logger.error('Uncaught exception', { error: err.message, stack: err.stack ? err.stack.split('\n').slice(0, 3).join(' ') : '' });
+  logger.error('Uncaught exception', {
+    error: err.message,
+    stack: err.stack ? err.stack.split('\n').slice(0, 3).join(' ') : '',
+  });
   cleanupLocks();
   process.exit(1);
 });

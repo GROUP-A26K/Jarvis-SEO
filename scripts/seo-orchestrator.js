@@ -26,13 +26,36 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const {
-  PATHS, logger, validateEnv, ensureDir, requireAnthropicKey,
-  loadSecret, getSiteConfig, getSiteList, getSiteLabels,
-  callClaudeWithRetry, extractClaudeText, printUnitsSummary, loadUnitsState,
-  loadTrackedArticles, loadLatestGapAnalysis, loadPipelineState, savePipelineState,
-  sanitize, sanitizeFilename, esc, httpRequest, sendEmail,
-  validateArticleInput, getISOWeek, writeJSONAtomic, readJSONSafe,
-  VALID_PERSONAS, EMAIL_RECIPIENTS, MAX_ARTICLES_PER_WEEK, TIMEOUTS,
+  PATHS,
+  logger,
+  validateEnv,
+  ensureDir,
+  requireAnthropicKey,
+  loadSecret,
+  getSiteConfig,
+  getSiteList,
+  getSiteLabels,
+  callClaudeWithRetry,
+  extractClaudeText,
+  printUnitsSummary,
+  loadUnitsState,
+  loadTrackedArticles,
+  loadLatestGapAnalysis,
+  loadPipelineState,
+  savePipelineState,
+  sanitize,
+  sanitizeFilename,
+  esc,
+  httpRequest,
+  sendEmail,
+  validateArticleInput,
+  getISOWeek,
+  writeJSONAtomic,
+  readJSONSafe,
+  VALID_PERSONAS,
+  EMAIL_RECIPIENTS,
+  MAX_ARTICLES_PER_WEEK,
+  TIMEOUTS,
 } = require('./seo-shared');
 
 // ─── Config ──────────────────────────────────────────────────
@@ -47,7 +70,9 @@ function runScript2(art, extraFlags, apiKey) {
   if (art.persona) args.push('--persona', art.persona);
   if (extraFlags) for (const f of extraFlags) args.push(f);
   return execFileSync(process.execPath, args, {
-    stdio: 'pipe', env: { ...process.env, ANTHROPIC_API_KEY: apiKey }, timeout: 5 * TIMEOUTS.claude,
+    stdio: 'pipe',
+    env: { ...process.env, ANTHROPIC_API_KEY: apiKey },
+    timeout: 5 * TIMEOUTS.claude,
   });
 }
 
@@ -74,7 +99,9 @@ async function phasePlan() {
   if (existing && existing.phase !== 'published' && !forceFlag) {
     const inProgress = (existing.articles || []).filter((a) => a.status !== 'planned');
     if (inProgress.length > 0) {
-      console.error(`\n  ! Pipeline "${existing.id}" en cours (${inProgress.length} articles avances).`);
+      console.error(
+        `\n  ! Pipeline "${existing.id}" en cours (${inProgress.length} articles avances).`,
+      );
       console.error('  Utiliser --plan --force pour ecraser, ou --publish pour terminer.');
       process.exit(1);
     }
@@ -84,14 +111,16 @@ async function phasePlan() {
   console.log('\n> Chargement des donnees...');
 
   const gap = loadLatestGapAnalysis();
-  if (!gap) throw new Error('Aucun gap analysis trouve. Lancer seo-gap-analysis.js d\'abord.');
+  if (!gap) throw new Error("Aucun gap analysis trouve. Lancer seo-gap-analysis.js d'abord.");
   console.log(`  + Gap analysis: ${gap.date} (${Object.keys(gap.sites).length} sites)`);
 
   const tracked = loadTrackedArticles();
   console.log(`  + ${tracked.length} articles trackes`);
 
   const units = loadUnitsState();
-  console.log(`  + Semrush units: ${units.consumed}/${units.planTotal} (${Math.round(units.consumed / units.planTotal * 100)}%)`);
+  console.log(
+    `  + Semrush units: ${units.consumed}/${units.planTotal} (${Math.round((units.consumed / units.planTotal) * 100)}%)`,
+  );
 
   // Construire un resume des articles existants par site
   const existingBySite = {};
@@ -99,8 +128,10 @@ async function phasePlan() {
   for (const art of tracked) {
     if (art.site && existingBySite[art.site]) {
       existingBySite[art.site].push({
-        keyword: art.keyword, slug: art.slug,
-        geoScore: art.geo_score, position: art.position_j30 || art.position_j60 || art.position_j90 || null,
+        keyword: art.keyword,
+        slug: art.slug,
+        geoScore: art.geo_score,
+        position: art.position_j30 || art.position_j60 || art.position_j90 || null,
         publishedAt: art.published_at || art.publishedAt,
       });
     }
@@ -112,8 +143,11 @@ async function phasePlan() {
     gapSummary[site] = {
       verticale: data.verticale,
       topGaps: (data.keywordGap || []).slice(0, 10).map((g) => ({
-        keyword: g.keyword, volume: g.volume, difficulty: g.difficulty,
-        score: g.score, intent: g.intent,
+        keyword: g.keyword,
+        volume: g.volume,
+        difficulty: g.difficulty,
+        score: g.score,
+        intent: g.intent,
         trending: g.trend ? g.trend.trending : false,
         trendRatio: g.trend ? g.trend.trendRatio : 1,
         featuredSnippet: g.featuredSnippet || false,
@@ -125,15 +159,26 @@ async function phasePlan() {
   }
 
   // Decay articles (pour content refresh)
-  const decayArticles = tracked.filter((a) => {
-    if (!a.published_at && !a.publishedAt) return false;
-    const pubDate = new Date(a.published_at || a.publishedAt);
-    if (isNaN(pubDate.getTime())) return false;
-    const monthsOld = (Date.now() - pubDate.getTime()) / (30 * 24 * 3600 * 1000);
-    if (monthsOld < 6) return false;
-    const best = Math.min(a.position_j30 || 999, a.position_j60 || 999, a.position_j90 || 999);
-    return best < 999;
-  }).map((a) => ({ keyword: a.keyword, site: a.site, slug: a.slug, bestPosition: Math.min(a.position_j30 || 999, a.position_j60 || 999, a.position_j90 || 999), monthsOld: Math.round((Date.now() - new Date(a.published_at || a.publishedAt).getTime()) / (30 * 24 * 3600 * 1000)) }));
+  const decayArticles = tracked
+    .filter((a) => {
+      if (!a.published_at && !a.publishedAt) return false;
+      const pubDate = new Date(a.published_at || a.publishedAt);
+      if (isNaN(pubDate.getTime())) return false;
+      const monthsOld = (Date.now() - pubDate.getTime()) / (30 * 24 * 3600 * 1000);
+      if (monthsOld < 6) return false;
+      const best = Math.min(a.position_j30 || 999, a.position_j60 || 999, a.position_j90 || 999);
+      return best < 999;
+    })
+    .map((a) => ({
+      keyword: a.keyword,
+      site: a.site,
+      slug: a.slug,
+      bestPosition: Math.min(a.position_j30 || 999, a.position_j60 || 999, a.position_j90 || 999),
+      monthsOld: Math.round(
+        (Date.now() - new Date(a.published_at || a.publishedAt).getTime()) /
+          (30 * 24 * 3600 * 1000),
+      ),
+    }));
 
   // 2. Appel Claude Strategist
   console.log('\n> Appel Claude Strategist...');
@@ -173,36 +218,66 @@ Reponds UNIQUEMENT en JSON:
   ]
 }`;
 
-  const resp = await callClaudeWithRetry(apiKey, 'Strategiste SEO. Reponds UNIQUEMENT en JSON valide.', strategistPrompt, 4096);
-  const cleaned = extractClaudeText(resp).replace(/```json\s?|```/g, '').trim();
+  const resp = await callClaudeWithRetry(
+    apiKey,
+    'Strategiste SEO. Reponds UNIQUEMENT en JSON valide.',
+    strategistPrompt,
+    4096,
+  );
+  const cleaned = extractClaudeText(resp)
+    .replace(/```json\s?|```/g, '')
+    .trim();
   let plan;
-  try { plan = JSON.parse(cleaned); } catch (e) { throw new Error(`Plan JSON invalide: ${cleaned.slice(0, 300)}. ${e.message}`); }
+  try {
+    plan = JSON.parse(cleaned);
+  } catch (e) {
+    throw new Error(`Plan JSON invalide: ${cleaned.slice(0, 300)}. ${e.message}`);
+  }
 
   if (!plan.articles || !Array.isArray(plan.articles)) throw new Error('Plan sans articles');
 
   // Valider les sites et personas
   plan.articles = plan.articles.filter((a) => {
-    if (!getSiteList().includes(a.site)) { logger.warn(`Site invalide "${a.site}", article ignore`); return false; }
-    if (!a.keyword) { logger.warn('Article sans keyword, ignore'); return false; }
+    if (!getSiteList().includes(a.site)) {
+      logger.warn(`Site invalide "${a.site}", article ignore`);
+      return false;
+    }
+    if (!a.keyword) {
+      logger.warn('Article sans keyword, ignore');
+      return false;
+    }
     return true;
   });
 
   console.log(`\n+ Plan: ${plan.articles.length} articles`);
   console.log(`  Strategie: ${plan.reasoning || 'N/A'}`);
   for (const art of plan.articles) {
-    console.log(`  ${art.priority}. [${SITE_LABELS[art.site] || art.site}] "${art.keyword}" (${art.type || 'new'}, ${art.format || 'guide'})`);
+    console.log(
+      `  ${art.priority}. [${SITE_LABELS[art.site] || art.site}] "${art.keyword}" (${art.type || 'new'}, ${art.format || 'guide'})`,
+    );
     console.log(`     -> ${art.reasoning || 'N/A'}`);
   }
 
   // 3. Sauvegarder le plan
   const planId = `plan-${weekStr}`;
   const state = {
-    id: planId, weekStr, phase: 'plan_sent', createdAt: new Date().toISOString(),
-    reasoning: plan.reasoning, articles: plan.articles.map((a, i) => ({
-      ...a, index: i, status: 'planned',
-      dryRunPath: null, imagePlanPath: null, articleSlug: null,
-      imagesReady: false, imagesResult: null, imagesPath: null,
-      approved: null, publishedDocId: null,
+    id: planId,
+    weekStr,
+    phase: 'plan_sent',
+    createdAt: new Date().toISOString(),
+    reasoning: plan.reasoning,
+    articles: plan.articles.map((a, i) => ({
+      ...a,
+      index: i,
+      status: 'planned',
+      dryRunPath: null,
+      imagePlanPath: null,
+      articleSlug: null,
+      imagesReady: false,
+      imagesResult: null,
+      imagesPath: null,
+      approved: null,
+      publishedDocId: null,
     })),
   };
 
@@ -220,9 +295,14 @@ Reponds UNIQUEMENT en JSON:
   const wn = weekStr.split('W')[1];
   const emailHtml = buildPlanEmail(state, wn);
   try {
-    await sendEmail(`Plan SEO S${wn} | ${plan.articles.length} articles | Groupe Genevoise`, emailHtml);
+    await sendEmail(
+      `Plan SEO S${wn} | ${plan.articles.length} articles | Groupe Genevoise`,
+      emailHtml,
+    );
     console.log('  + Email envoye');
-  } catch (e) { console.error(`  ! Email: ${e.message}`); }
+  } catch (e) {
+    console.error(`  ! Email: ${e.message}`);
+  }
 
   printUnitsSummary();
   console.log('\n========================================');
@@ -232,14 +312,18 @@ Reponds UNIQUEMENT en JSON:
 }
 
 function buildPlanEmail(state, wn) {
-  const rows = state.articles.map((a) => `<tr>
+  const rows = state.articles
+    .map(
+      (a) => `<tr>
     <td><strong>${a.priority}</strong></td>
     <td>${esc(SITE_LABELS[a.site] || a.site)}</td>
     <td><strong>${esc(a.keyword)}</strong></td>
     <td>${esc(a.type || 'new')}</td>
     <td>${esc(a.format || 'guide')}</td>
     <td style="font-size:11px;color:#666">${esc((a.reasoning || '').slice(0, 80))}</td>
-  </tr>`).join('');
+  </tr>`,
+    )
+    .join('');
 
   return `<div style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:700px;margin:0 auto;padding:20px">
 <h2 style="color:#1a1a2e">Plan SEO — Semaine ${esc(wn)}</h2>
@@ -263,7 +347,7 @@ async function phaseExecute() {
   console.log('========================================');
 
   const state = loadPipelineState();
-  if (!state) throw new Error('Aucun pipeline actif. Lancer --plan d\'abord.');
+  if (!state) throw new Error("Aucun pipeline actif. Lancer --plan d'abord.");
 
   // Chercher le plan approuve (soit pipeline-state modifie, soit fichier plan-approved)
   const approvedPath = path.join(PATHS.reports, `plan-approved-${state.weekStr}.json`);
@@ -272,8 +356,11 @@ async function phaseExecute() {
   if (fs.existsSync(approvedPath)) {
     console.log(`  + Plan approuve charge: ${approvedPath}`);
     try {
-      const approved = readJSONSafe(approvedPath, null); if (!approved) throw new Error('Plan approuve invalide');
-      const approvedFromFile = (approved.articles || []).filter((a) => a.status === 'approved' || a.approved === true);
+      const approved = readJSONSafe(approvedPath, null);
+      if (!approved) throw new Error('Plan approuve invalide');
+      const approvedFromFile = (approved.articles || []).filter(
+        (a) => a.status === 'approved' || a.approved === true,
+      );
       // Sync approved articles back into state.articles by keyword+site match
       for (const af of approvedFromFile) {
         const match = state.articles.find((sa) => sa.keyword === af.keyword && sa.site === af.site);
@@ -285,7 +372,9 @@ async function phaseExecute() {
           if (af.format) match.format = af.format;
         }
       }
-      approvedArticles = state.articles.filter((a) => a.status === 'approved' || a.approved === true);
+      approvedArticles = state.articles.filter(
+        (a) => a.status === 'approved' || a.approved === true,
+      );
     } catch (e) {
       console.error(`  ! Erreur lecture plan approuve: ${e.message}`);
       approvedArticles = [];
@@ -326,7 +415,11 @@ async function phaseExecute() {
         runScript2(art, ['--dry-run'], apiKey);
 
         // Trouver le fichier dry-run genere
-        const dryRunFiles = fs.readdirSync(PATHS.reports).filter((f) => f.startsWith(`article-dryrun-${art.site}`) && f.endsWith('.json')).sort().reverse();
+        const dryRunFiles = fs
+          .readdirSync(PATHS.reports)
+          .filter((f) => f.startsWith(`article-dryrun-${art.site}`) && f.endsWith('.json'))
+          .sort()
+          .reverse();
         if (dryRunFiles.length > 0) {
           art.dryRunPath = path.join(PATHS.reports, dryRunFiles[0]);
           art.status = 'dry_run_done';
@@ -337,7 +430,9 @@ async function phaseExecute() {
             const dryRunData = readJSONSafe(art.dryRunPath, null);
             if (dryRunData) art.geoScore = dryRunData.geoScore ? dryRunData.geoScore.total : null;
             art.geoStatus = dryRunData.geoScore ? dryRunData.geoScore.status : null;
-          } catch (e) { logger.debug("catch silencieux", { error: e.message }); }
+          } catch (e) {
+            logger.debug('catch silencieux', { error: e.message });
+          }
         }
       } catch (e) {
         console.error(`  ! Dry-run echoue: ${e.message}`);
@@ -369,7 +464,15 @@ async function phaseExecute() {
               persona: art.persona,
               keyword: art.keyword,
               dryRunPath: art.dryRunPath,
-              siteContext: siteConfig ? siteConfig.siteContext : { secteur: SITE_LABELS[art.site] || art.site, ton: '', public: '', palette: [], exemples_articles: '' },
+              siteContext: siteConfig
+                ? siteConfig.siteContext
+                : {
+                    secteur: SITE_LABELS[art.site] || art.site,
+                    ton: '',
+                    public: '',
+                    palette: [],
+                    exemples_articles: '',
+                  },
               createdAt: new Date().toISOString(),
             });
             console.log(`  + Image plan: ${planPath}`);
@@ -379,14 +482,19 @@ async function phaseExecute() {
           art.imagePlanPath = planPath;
           art.articleSlug = slug;
         }
-      } catch (e) { logger.warn(`Image plan: ${e.message}`); }
+      } catch (e) {
+        logger.warn(`Image plan: ${e.message}`);
+      }
     }
 
     // c. Verifier si les images sont pretes
     //    1. Lire result-{slug}.json (metadonnees SEO completes du script images)
     //    2. Fallback: detecter les fichiers images par convention de nommage
     if (art.articleSlug) {
-      const resultPath = path.join(PATHS.images, `result-${sanitizeFilename(art.articleSlug)}.json`);
+      const resultPath = path.join(
+        PATHS.images,
+        `result-${sanitizeFilename(art.articleSlug)}.json`,
+      );
       if (fs.existsSync(resultPath)) {
         try {
           const result = readJSONSafe(resultPath, null);
@@ -395,19 +503,27 @@ async function phaseExecute() {
             art.imagesResult = result;
             art.imagesPath = result.images.map((img) => path.join(PATHS.images, img.filename));
             art.status = 'ready_for_review';
-            console.log(`  + Images (result): ${result.images.length} images, cout $${(result.cost && result.cost.total || 0).toFixed(2)}`);
+            console.log(
+              `  + Images (result): ${result.images.length} images, cout $${((result.cost && result.cost.total) || 0).toFixed(2)}`,
+            );
           }
-        } catch (e) { logger.debug("catch silencieux", { error: e.message }); }
+        } catch (e) {
+          logger.debug('catch silencieux', { error: e.message });
+        }
       } else if (fs.existsSync(PATHS.images)) {
         // Fallback: detection par convention de nommage ({slug}-hero.*)
-        const imageFiles = fs.readdirSync(PATHS.images).filter((f) => f.startsWith(art.articleSlug) && !f.endsWith('.json'));
+        const imageFiles = fs
+          .readdirSync(PATHS.images)
+          .filter((f) => f.startsWith(art.articleSlug) && !f.endsWith('.json'));
         if (imageFiles.length > 0) {
           art.imagesReady = true;
           art.imagesPath = imageFiles.map((f) => path.join(PATHS.images, f));
           art.status = 'ready_for_review';
           console.log(`  + Images (fichiers): ${imageFiles.join(', ')}`);
         } else {
-          console.log(`  ~ Images en attente — lancer: node seo-images.js --plan ${sanitizeFilename(art.articleSlug)}`);
+          console.log(
+            `  ~ Images en attente — lancer: node seo-images.js --plan ${sanitizeFilename(art.articleSlug)}`,
+          );
         }
       }
     }
@@ -416,7 +532,9 @@ async function phaseExecute() {
   }
 
   // Resume
-  const done = approvedArticles.filter((a) => a.status === 'dry_run_done' || a.status === 'ready_for_review').length;
+  const done = approvedArticles.filter(
+    (a) => a.status === 'dry_run_done' || a.status === 'ready_for_review',
+  ).length;
   const failed = approvedArticles.filter((a) => a.status === 'dry_run_failed').length;
   const withImages = approvedArticles.filter((a) => a.imagesReady).length;
 
@@ -435,16 +553,26 @@ async function phaseExecute() {
   // Email resume
   try {
     const wn = state.weekStr.split('W')[1];
-    await sendEmail(`Execution SEO S${wn} | ${done} dry-runs | Groupe Genevoise`,
+    await sendEmail(
+      `Execution SEO S${wn} | ${done} dry-runs | Groupe Genevoise`,
       `<div style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
       <h2 style="color:#1a1a2e">Execution S${wn}</h2>
       <p style="color:#555"><strong>${done}</strong> dry-runs OK | <strong>${failed}</strong> echecs | <strong>${withImages}</strong> images pretes</p>
-      ${approvedArticles.map((a) => `<p style="font-size:13px;color:${a.status === 'dry_run_failed' ? '#e74c3c' : '#27ae60'}">
-        ${a.status === 'dry_run_failed' ? '!' : '+'} "${esc(a.keyword)}" (${esc(SITE_LABELS[a.site] || a.site)}) — ${esc(a.status)}${a.geoScore ? ` — GEO: ${a.geoScore}` : ''}</p>`).join('')}
+      ${approvedArticles
+        .map(
+          (
+            a,
+          ) => `<p style="font-size:13px;color:${a.status === 'dry_run_failed' ? '#e74c3c' : '#27ae60'}">
+        ${a.status === 'dry_run_failed' ? '!' : '+'} "${esc(a.keyword)}" (${esc(SITE_LABELS[a.site] || a.site)}) — ${esc(a.status)}${a.geoScore ? ` — GEO: ${a.geoScore}` : ''}</p>`,
+        )
+        .join('')}
       <hr style="border:none;border-top:1px solid #eee;margin:20px 0">
-      <p style="color:#999;font-size:12px">Jarvis One | A26K Group</p></div>`);
+      <p style="color:#999;font-size:12px">Jarvis One | A26K Group</p></div>`,
+    );
     console.log('  + Email envoye');
-  } catch (e) { logger.debug("catch silencieux", { error: e.message }); }
+  } catch (e) {
+    logger.debug('catch silencieux', { error: e.message });
+  }
 }
 
 // ─── PHASE 3: PUBLISH ────────────────────────────────────────
@@ -461,15 +589,19 @@ async function phasePublish() {
 
   // Articles prets pour publication: require explicit approval
   // User can set either approved:true OR status:"approved" in pipeline-state.json
-  const toPublish = state.articles.filter((a) =>
-    (a.status === 'ready_for_review' || a.status === 'dry_run_done' || a.status === 'approved') &&
-    (a.approved === true || a.status === 'approved')
+  const toPublish = state.articles.filter(
+    (a) =>
+      (a.status === 'ready_for_review' || a.status === 'dry_run_done' || a.status === 'approved') &&
+      (a.approved === true || a.status === 'approved'),
   );
 
   if (toPublish.length === 0) {
     console.log('\n  ! Aucun article approuve pour publication.');
     console.log('  Mettre "approved": true OU "status": "approved" dans pipeline-state.json.');
-    const pendingReview = state.articles.filter((a) => (a.status === 'ready_for_review' || a.status === 'dry_run_done') && a.approved !== true);
+    const pendingReview = state.articles.filter(
+      (a) =>
+        (a.status === 'ready_for_review' || a.status === 'dry_run_done') && a.approved !== true,
+    );
     if (pendingReview.length > 0) {
       console.log(`  ${pendingReview.length} articles en attente d'approbation:`);
       pendingReview.forEach((a) => console.log(`    - "${a.keyword}" (${a.site}) [${a.status}]`));
@@ -478,7 +610,8 @@ async function phasePublish() {
   }
 
   console.log(`\n+ ${toPublish.length} articles approuves a publier`);
-  let published = 0, failed = 0;
+  let published = 0,
+    failed = 0;
 
   for (const art of toPublish) {
     console.log(`\n> "${art.keyword}" (${art.site})`);
@@ -497,7 +630,8 @@ async function phasePublish() {
       // Build flags: --force + image path/alt if available from pipeline
       const flags = ['--force'];
       if (art.imagesResult && art.imagesResult.images && art.imagesResult.images.length > 0) {
-        const heroImg = art.imagesResult.images.find((img) => img.role === 'hero') || art.imagesResult.images[0];
+        const heroImg =
+          art.imagesResult.images.find((img) => img.role === 'hero') || art.imagesResult.images[0];
         const imgPath = path.join(PATHS.images, heroImg.filename);
         if (fs.existsSync(imgPath)) {
           flags.push('--image-path', imgPath);
@@ -545,22 +679,35 @@ async function phasePublish() {
   // Email resume
   try {
     const wn = state.weekStr.split('W')[1];
-    await sendEmail(`Publication SEO S${wn} | ${published} articles | Groupe Genevoise`,
+    await sendEmail(
+      `Publication SEO S${wn} | ${published} articles | Groupe Genevoise`,
       `<div style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
       <h2 style="color:#1a1a2e">Publication S${wn}</h2>
       <p style="color:#555"><strong>${published}</strong> publies | <strong>${failed}</strong> echecs</p>
-      ${toPublish.map((a) => `<p style="font-size:13px;color:${a.status === 'published' ? '#27ae60' : '#e74c3c'}">
-        ${a.status === 'published' ? '+' : '!'} "${esc(a.keyword)}" (${esc(SITE_LABELS[a.site] || a.site)})${a.publishedDocId ? ` — ${esc(a.publishedDocId)}` : ''}</p>`).join('')}
+      ${toPublish
+        .map(
+          (
+            a,
+          ) => `<p style="font-size:13px;color:${a.status === 'published' ? '#27ae60' : '#e74c3c'}">
+        ${a.status === 'published' ? '+' : '!'} "${esc(a.keyword)}" (${esc(SITE_LABELS[a.site] || a.site)})${a.publishedDocId ? ` — ${esc(a.publishedDocId)}` : ''}</p>`,
+        )
+        .join('')}
       <hr style="border:none;border-top:1px solid #eee;margin:20px 0">
-      <p style="color:#999;font-size:12px">Jarvis One | A26K Group</p></div>`);
-  } catch (e) { logger.debug("catch silencieux", { error: e.message }); }
+      <p style="color:#999;font-size:12px">Jarvis One | A26K Group</p></div>`,
+    );
+  } catch (e) {
+    logger.debug('catch silencieux', { error: e.message });
+  }
 }
 
 // ─── STATUS ──────────────────────────────────────────────────
 
 function phaseStatus() {
   const state = loadPipelineState();
-  if (!state) { console.log('Aucun pipeline actif.'); return; }
+  if (!state) {
+    console.log('Aucun pipeline actif.');
+    return;
+  }
 
   console.log('========================================');
   console.log(`  Pipeline: ${state.id}`);
@@ -572,8 +719,19 @@ function phaseStatus() {
 
   console.log(`\n  Articles (${state.articles.length}):`);
   for (const a of state.articles) {
-    const icon = { planned: '.', approved: '~', dry_run_done: '+', dry_run_failed: '!', ready_for_review: '*', published: 'V', publish_failed: 'X' }[a.status] || '?';
-    console.log(`  [${icon}] ${a.priority || '-'}. "${a.keyword}" (${SITE_LABELS[a.site] || a.site}) — ${a.status}${a.geoScore ? ` — GEO:${a.geoScore}` : ''}${a.imagesReady ? ' [IMG]' : ''}`);
+    const icon =
+      {
+        planned: '.',
+        approved: '~',
+        dry_run_done: '+',
+        dry_run_failed: '!',
+        ready_for_review: '*',
+        published: 'V',
+        publish_failed: 'X',
+      }[a.status] || '?';
+    console.log(
+      `  [${icon}] ${a.priority || '-'}. "${a.keyword}" (${SITE_LABELS[a.site] || a.site}) — ${a.status}${a.geoScore ? ` — GEO:${a.geoScore}` : ''}${a.imagesReady ? ' [IMG]' : ''}`,
+    );
   }
 
   console.log(`\n  Legende: . planned  ~ approved  + dry-run OK  * review  V published  ! failed`);
@@ -584,7 +742,10 @@ function phaseStatus() {
 
 function phaseApprove(keyword) {
   const state = loadPipelineState();
-  if (!state) { console.error('Aucun pipeline actif.'); process.exit(1); }
+  if (!state) {
+    console.error('Aucun pipeline actif.');
+    process.exit(1);
+  }
 
   if (!keyword) {
     // Afficher tous les articles avec leur statut
@@ -602,7 +763,10 @@ function phaseApprove(keyword) {
   }
 
   const art = state.articles.find((a) => a.keyword.toLowerCase() === keyword.toLowerCase());
-  if (!art) { console.error(`Article "${keyword}" non trouve dans le pipeline.`); process.exit(1); }
+  if (!art) {
+    console.error(`Article "${keyword}" non trouve dans le pipeline.`);
+    process.exit(1);
+  }
 
   art.approved = true;
   art.status = 'approved';
@@ -612,7 +776,10 @@ function phaseApprove(keyword) {
 
 function phaseApproveAll() {
   const state = loadPipelineState();
-  if (!state) { console.error('Aucun pipeline actif.'); process.exit(1); }
+  if (!state) {
+    console.error('Aucun pipeline actif.');
+    process.exit(1);
+  }
 
   let count = 0;
   for (const a of state.articles) {
@@ -633,12 +800,18 @@ async function main() {
   const cmd = args[0];
 
   switch (cmd) {
-    case '--plan': return phasePlan();
-    case '--execute': return phaseExecute();
-    case '--publish': return phasePublish();
-    case '--approve': return phaseApprove(args[1]);
-    case '--approve-all': return phaseApproveAll();
-    case '--status': return phaseStatus();
+    case '--plan':
+      return phasePlan();
+    case '--execute':
+      return phaseExecute();
+    case '--publish':
+      return phasePublish();
+    case '--approve':
+      return phaseApprove(args[1]);
+    case '--approve-all':
+      return phaseApproveAll();
+    case '--status':
+      return phaseStatus();
     default:
       console.log('Usage:');
       console.log('  node seo-orchestrator.js --plan         Analyse + plan + email');

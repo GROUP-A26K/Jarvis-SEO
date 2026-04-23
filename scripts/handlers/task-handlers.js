@@ -11,9 +11,15 @@ const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 
 const {
-  logger, sendEmail, esc, TIMEOUTS, readTaskResult,
-  requireAnthropicKey, getSiteConfig,
-  sanitize, validateArticleInput,
+  logger,
+  sendEmail,
+  esc,
+  TIMEOUTS,
+  readTaskResult,
+  requireAnthropicKey,
+  getSiteConfig,
+  sanitize,
+  validateArticleInput,
 } = require('../seo-shared');
 
 const fs = require('fs');
@@ -31,7 +37,9 @@ function runArticle(site, keyword, extraFlags, apiKey, taskId) {
   const uniqueId = taskId || crypto.randomBytes(8).toString('hex');
   const outputJsonPath = path.join(tmpDir, `jarvis-result-${uniqueId}.json`);
   const args = [scriptPath, '--site', site, '--keyword', keyword, '--output-json', outputJsonPath];
-  if (taskId) { args.push('--task-id', taskId); }
+  if (taskId) {
+    args.push('--task-id', taskId);
+  }
   if (extraFlags) for (const f of extraFlags) args.push(f);
   let stdout = '';
   let execError = null;
@@ -58,8 +66,15 @@ function runArticle(site, keyword, extraFlags, apiKey, taskId) {
  * @param {string} url - URL publiee
  */
 async function sendPublicationNotification(site, title, theme, url) {
-  const date = new Date().toLocaleDateString('fr-CH', { day: 'numeric', month: 'long', year: 'numeric' });
-  const siteName = site.replace(/\.ch$/, '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const date = new Date().toLocaleDateString('fr-CH', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  const siteName = site
+    .replace(/\.ch$/, '')
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
   const subject = `[${siteName}] Nouvel article publie — ${esc(title || theme)}`;
   const html = `<div style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
     <h2 style="color:#1a1a2e;margin-bottom:4px">${esc(siteName)}</h2>
@@ -113,15 +128,20 @@ async function handleRegenerateExhibit(task, ctx) {
   const site = pubRow.websites?.domain;
   if (!site) throw new Error('Publication has no site domain');
 
-  const fullText = (draft.sections || []).map(s => `${s.heading}\n${s.content}`).join('\n\n');
+  const fullText = (draft.sections || []).map((s) => `${s.heading}\n${s.content}`).join('\n\n');
 
   const { planExhibits, processExhibit } = require('../seo-exhibits');
   const apiKey = requireAnthropicKey();
   const siteConf = getSiteConfig(site);
 
   const keyword = draft.title || '';
-  const briefs = await planExhibits(apiKey, fullText, siteConf ? siteConf.siteContext : {}, keyword);
-  const brief = briefs.find(b => b.exhibit_number === exhibitNumber) || briefs[0];
+  const briefs = await planExhibits(
+    apiKey,
+    fullText,
+    siteConf ? siteConf.siteContext : {},
+    keyword,
+  );
+  const brief = briefs.find((b) => b.exhibit_number === exhibitNumber) || briefs[0];
   if (!brief) throw new Error('No exhibit brief generated');
 
   if (userPrompt) {
@@ -132,15 +152,22 @@ async function handleRegenerateExhibit(task, ctx) {
   if (!result) throw new Error('Exhibit generation failed');
 
   // Upload to storage
-  const storagePath = await ctx.uploadExhibitToStorage(task.publication_id, exhibitNumber, result.pngPath);
+  const storagePath = await ctx.uploadExhibitToStorage(
+    task.publication_id,
+    exhibitNumber,
+    result.pngPath,
+  );
 
   // Update draft_content.exhibits
-  const updatedExhibits = (draft.exhibits || []).filter(e => e.exhibitNumber !== exhibitNumber);
+  const updatedExhibits = (draft.exhibits || []).filter((e) => e.exhibitNumber !== exhibitNumber);
   updatedExhibits.push({ altText: result.altText, exhibitNumber, storagePath });
   updatedExhibits.sort((a, b) => a.exhibitNumber - b.exhibitNumber);
 
   const updatedDraft = { ...draft, exhibits: updatedExhibits };
-  await ctx.client.from('publications').update({ draft_content: updatedDraft }).eq('id', task.publication_id);
+  await ctx.client
+    .from('publications')
+    .update({ draft_content: updatedDraft })
+    .eq('id', task.publication_id);
 
   await ctx.ackTask(task.id, { exhibit_number: exhibitNumber, storage_path: storagePath });
   console.log(`  + Exhibit ${exhibitNumber} regenerated and uploaded\n`);
@@ -190,8 +217,16 @@ async function handleScheduledPublication(pub, ctx) {
     }
   }
 
-  const { stdout, result, outputJsonPath, execError } = runArticle(site, keyword, flags, ctx.apiKey, `pub-${pub.id}`);
-  if (execError && !result) { throw execError; }
+  const { stdout, result, outputJsonPath, execError } = runArticle(
+    site,
+    keyword,
+    flags,
+    ctx.apiKey,
+    `pub-${pub.id}`,
+  );
+  if (execError && !result) {
+    throw execError;
+  }
   if (result && result.status === 'error') {
     throw new Error(`Pipeline error: ${result.error.code} — ${result.error.message}`);
   }
@@ -209,9 +244,13 @@ async function handleScheduledPublication(pub, ctx) {
       metaUpdates.hero_uploaded_at = new Date().toISOString();
     }
     if (!result) {
-      logger.warn(`Pipeline result missing for pub ${pub.id} — pipeline may have crashed before writing JSON`);
+      logger.warn(
+        `Pipeline result missing for pub ${pub.id} — pipeline may have crashed before writing JSON`,
+      );
     } else if (result.status === 'error') {
-      logger.warn(`Pipeline returned error for pub ${pub.id}: ${result.error && result.error.code} — ${result.error && result.error.message}`);
+      logger.warn(
+        `Pipeline returned error for pub ${pub.id}: ${result.error && result.error.code} — ${result.error && result.error.message}`,
+      );
     }
 
     if (Object.keys(metaUpdates).length > 0) {
@@ -221,11 +260,15 @@ async function handleScheduledPublication(pub, ctx) {
     await sendPublicationNotification(site, pub.title, pub.theme, contentUrl);
   }
   // PR 0.3 : cleanup result JSON
-  try { if (outputJsonPath && fs.existsSync(outputJsonPath)) fs.unlinkSync(outputJsonPath); } catch (_) {}
+  try {
+    if (outputJsonPath && fs.existsSync(outputJsonPath)) fs.unlinkSync(outputJsonPath);
+  } catch (_) {}
 
   // Cleanup temp file
   if (heroTmpPath) {
-    try { fs.unlinkSync(heroTmpPath); } catch (_) {}
+    try {
+      fs.unlinkSync(heroTmpPath);
+    } catch (_) {}
   }
 
   console.log(`     + OK`);
@@ -267,7 +310,9 @@ async function handlePublishDraft(task, ctx) {
 
   const { data: pubRow, error: pubErr } = await ctx.client
     .from('publications')
-    .select('draft_content, hero_image_path, metadata, website_id, websites(domain, sanity_document_type)')
+    .select(
+      'draft_content, hero_image_path, metadata, website_id, websites(domain, sanity_document_type)',
+    )
     .eq('id', task.publication_id)
     .single();
   if (pubErr) throw new Error(`Fetch publication: ${pubErr.message}`);
@@ -282,10 +327,15 @@ async function handlePublishDraft(task, ctx) {
 
   // Build article object from draft
   const article = {
-    title: draft.title, slug: draft.slug, summary: draft.summary || draft.metaDescription,
-    metaTitle: draft.metaTitle || draft.title, metaDescription: draft.metaDescription || draft.summary,
-    sections: draft.sections || [], faq: draft.faq || [],
-    citableExtracts: draft.citableExtracts || [], sourceUrls: draft.sourceUrls || [],
+    title: draft.title,
+    slug: draft.slug,
+    summary: draft.summary || draft.metaDescription,
+    metaTitle: draft.metaTitle || draft.title,
+    metaDescription: draft.metaDescription || draft.summary,
+    sections: draft.sections || [],
+    faq: draft.faq || [],
+    citableExtracts: draft.citableExtracts || [],
+    sourceUrls: draft.sourceUrls || [],
   };
   const persona = draft.persona || 'default';
   const disclaimer = draft.disclaimer || '';
@@ -306,7 +356,18 @@ async function handlePublishDraft(task, ctx) {
   // Publish to Sanity
   const geoScore = { total: 0, status: 'unknown' };
   const keyword = draft.title || '';
-  const resFR = await ctx.publishToSanity(site, article, 'fr', persona, geoScore, disclaimer, imageAssetId, null, [], keyword);
+  const resFR = await ctx.publishToSanity(
+    site,
+    article,
+    'fr',
+    persona,
+    geoScore,
+    disclaimer,
+    imageAssetId,
+    null,
+    [],
+    keyword,
+  );
   console.log(`${prefix}+ Published to Sanity: ${resFR.docId}`);
 
   // Update publication
@@ -318,7 +379,12 @@ async function handlePublishDraft(task, ctx) {
   }
   await ctx.client
     .from('publications')
-    .update({ status: 'published', content_url: contentUrl, metadata: metaUpdates, draft_content: null })
+    .update({
+      status: 'published',
+      content_url: contentUrl,
+      metadata: metaUpdates,
+      draft_content: null,
+    })
     .eq('id', task.publication_id);
 
   await ctx.ackTask(task.id, { content_url: contentUrl, sanity_doc_id: resFR.docId });
@@ -327,14 +393,26 @@ async function handlePublishDraft(task, ctx) {
   try {
     const adminIds = await ctx.fetchSiteAdmins(pubRow.website_id);
     for (const adminId of adminIds) {
-      await ctx.createNotification(adminId, 'article_published', `Article publie : ${article.title}`, `L'article "${article.title}" a ete publie sur ${site}.`, task.publication_id);
+      await ctx.createNotification(
+        adminId,
+        'article_published',
+        `Article publie : ${article.title}`,
+        `L'article "${article.title}" a ete publie sur ${site}.`,
+        task.publication_id,
+      );
     }
-  } catch (notifErr) { logger.warn(`Publish notification failed: ${notifErr.message}`); }
+  } catch (notifErr) {
+    logger.warn(`Publish notification failed: ${notifErr.message}`);
+  }
 
   await sendPublicationNotification(site, article.title, '', contentUrl);
 
   // Cleanup
-  if (heroTmpPath) { try { fs.unlinkSync(heroTmpPath); } catch (_) {} }
+  if (heroTmpPath) {
+    try {
+      fs.unlinkSync(heroTmpPath);
+    } catch (_) {}
+  }
 
   console.log(`${prefix}+ OK (published)${tail}`);
   return 'published';
@@ -388,7 +466,9 @@ async function handleGenerateArticle(task, ctx) {
   const isDraftOnly = task.action === 'generate_article';
   const flags = ctx.dryRun
     ? ['--dry-run']
-    : (isDraftOnly ? ['--draft-only', '--force'] : ['--force']);
+    : isDraftOnly
+      ? ['--draft-only', '--force']
+      : ['--force'];
 
   // Hero image: read hero_image_path from the associated publication
   let heroTmpPath = null;
@@ -406,7 +486,9 @@ async function handleGenerateArticle(task, ctx) {
         flags.push('--image-path', heroTmpPath);
         console.log(`${prefix}(hero image: ${pubData.hero_image_path})`);
       } catch (imgErr) {
-        logger.warn(`Hero image download failed for task ${task.id}: ${imgErr.message} — will use default`);
+        logger.warn(
+          `Hero image download failed for task ${task.id}: ${imgErr.message} — will use default`,
+        );
       }
     }
 
@@ -417,8 +499,16 @@ async function handleGenerateArticle(task, ctx) {
     console.log(`${prefix}-> [${site}] "${keyword}" (${task.action})`);
   }
 
-  const { stdout, result, outputJsonPath, execError } = runArticle(site, keyword, flags, ctx.apiKey, task.id);
-  if (execError && !result) { throw execError; }
+  const { stdout, result, outputJsonPath, execError } = runArticle(
+    site,
+    keyword,
+    flags,
+    ctx.apiKey,
+    task.id,
+  );
+  if (execError && !result) {
+    throw execError;
+  }
   if (result && result.status === 'error' && !isDraftOnly) {
     throw new Error(`Pipeline error: ${result.error.code} — ${result.error.message}`);
   }
@@ -427,7 +517,11 @@ async function handleGenerateArticle(task, ctx) {
     // ── Draft-only path: store JSON locally, notify admins ──
     // PR 0.3 : read draft from JSON result instead of parsing stdout DRAFT_JSON: line
     if (!result || !result.draft) {
-      throw new Error(result && result.error ? `Pipeline error: ${result.error.code} — ${result.error.message}` : 'Pipeline result missing draft payload');
+      throw new Error(
+        result && result.error
+          ? `Pipeline error: ${result.error.code} — ${result.error.message}`
+          : 'Pipeline result missing draft payload',
+      );
     }
     const parsedDraft = result.draft;
 
@@ -439,15 +533,26 @@ async function handleGenerateArticle(task, ctx) {
     // NOTE: this branch runs only when ctx.uploadExhibitsToStorage is true —
     // currently used by workflow-single-task.js only. workflow-daily.js does
     // not enable it; preserving the pre-PR-0.4 divergence.
-    if (ctx.uploadExhibitsToStorage && task.publication_id && parsedDraft.exhibits && parsedDraft.exhibits.length > 0) {
+    if (
+      ctx.uploadExhibitsToStorage &&
+      task.publication_id &&
+      parsedDraft.exhibits &&
+      parsedDraft.exhibits.length > 0
+    ) {
       try {
         const exhibitPaths = [];
         const exhibitsDir = path.join(SCRIPTS_DIR, '..', 'images', 'exhibits');
         for (const ex of parsedDraft.exhibits) {
-          const pngFiles = fs.readdirSync(exhibitsDir).filter(f => f.includes(`-${ex.exhibitNumber}`) && f.endsWith('-source.png'));
+          const pngFiles = fs
+            .readdirSync(exhibitsDir)
+            .filter((f) => f.includes(`-${ex.exhibitNumber}`) && f.endsWith('-source.png'));
           if (pngFiles.length > 0) {
             const localPath = path.join(exhibitsDir, pngFiles[0]);
-            const storagePath = await ctx.uploadExhibitToStorage(task.publication_id, ex.exhibitNumber, localPath);
+            const storagePath = await ctx.uploadExhibitToStorage(
+              task.publication_id,
+              ex.exhibitNumber,
+              localPath,
+            );
             exhibitPaths.push({ ...ex, storagePath });
           }
         }
@@ -506,20 +611,28 @@ async function handleGenerateArticle(task, ctx) {
       }
     }
     if (!result) {
-      logger.warn(`Pipeline result missing for task ${task.id} — pipeline may have crashed before writing JSON`);
+      logger.warn(
+        `Pipeline result missing for task ${task.id} — pipeline may have crashed before writing JSON`,
+      );
     } else if (result.status === 'error') {
-      logger.warn(`Pipeline returned error for task ${task.id}: ${result.error && result.error.code} — ${result.error && result.error.message}`);
+      logger.warn(
+        `Pipeline returned error for task ${task.id}: ${result.error && result.error.code} — ${result.error && result.error.message}`,
+      );
     }
 
     await sendPublicationNotification(site, p.title || keyword, p.theme || keyword, contentUrl);
     if (ctx.logPublishedOk) console.log(`${prefix}+ OK (published)${tail}`);
   }
   // PR 0.3 : cleanup result JSON
-  try { if (outputJsonPath && fs.existsSync(outputJsonPath)) fs.unlinkSync(outputJsonPath); } catch (_) {}
+  try {
+    if (outputJsonPath && fs.existsSync(outputJsonPath)) fs.unlinkSync(outputJsonPath);
+  } catch (_) {}
 
   // Cleanup
   if (heroTmpPath) {
-    try { fs.unlinkSync(heroTmpPath); } catch (_) {}
+    try {
+      fs.unlinkSync(heroTmpPath);
+    } catch (_) {}
   }
 
   if (ctx.logGenericOk) console.log(`${prefix}+ OK`);

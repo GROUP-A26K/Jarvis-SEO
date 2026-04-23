@@ -52,11 +52,26 @@ function init(opts) {
     tracesSampleRate: 0,
     integrations: function (defaults) {
       const strip = [
-        'Http', 'NodeFetch', 'Express', 'Fastify', 'Koa', 'Connect',
-        'GraphQL', 'Mongo', 'Mongoose', 'Mysql', 'Mysql2', 'Postgres',
-        'Prisma', 'Redis', 'Anr', 'ProcessSession',
+        'Http',
+        'NodeFetch',
+        'Express',
+        'Fastify',
+        'Koa',
+        'Connect',
+        'GraphQL',
+        'Mongo',
+        'Mongoose',
+        'Mysql',
+        'Mysql2',
+        'Postgres',
+        'Prisma',
+        'Redis',
+        'Anr',
+        'ProcessSession',
       ];
-      return defaults.filter(function (i) { return strip.indexOf(i.name) === -1; });
+      return defaults.filter(function (i) {
+        return strip.indexOf(i.name) === -1;
+      });
     },
     beforeSend: function (event) {
       if (event.request && event.request.headers) {

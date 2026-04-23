@@ -136,16 +136,16 @@ La fonction `checkGEOVisibility` est une **heuristique** : elle demande a Claude
 
 ## Personas (8)
 
-| Persona | Sites |
-|---------|-------|
-| Hugo Schaller | medcourtage.ch |
-| Amelie Bonvin | medcourtage.ch |
-| Marc Favre | fiduciaire-genevoise.ch, fiduciairevaudoise.ch |
-| Elodie Rochat | fiduciaire-genevoise.ch, fiduciairevaudoise.ch |
-| Lucas Morel | relocation-genevoise.ch |
-| Sofia Meier | relocation-genevoise.ch |
-| Philippe Dufour | assurance-genevoise.ch |
-| Nathalie Berger | assurance-genevoise.ch |
+| Persona         | Sites                                          |
+| --------------- | ---------------------------------------------- |
+| Hugo Schaller   | medcourtage.ch                                 |
+| Amelie Bonvin   | medcourtage.ch                                 |
+| Marc Favre      | fiduciaire-genevoise.ch, fiduciairevaudoise.ch |
+| Elodie Rochat   | fiduciaire-genevoise.ch, fiduciairevaudoise.ch |
+| Lucas Morel     | relocation-genevoise.ch                        |
+| Sofia Meier     | relocation-genevoise.ch                        |
+| Philippe Dufour | assurance-genevoise.ch                         |
+| Nathalie Berger | assurance-genevoise.ch                         |
 
 ## Exhibits (infographies de donnees)
 

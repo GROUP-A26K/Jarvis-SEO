@@ -13,23 +13,25 @@
 const sentry = require('./lib/sentry');
 sentry.init({ script: 'workflow-single-task' });
 
-
+const { logger, requireAnthropicKey, sendEmail } = require('./seo-shared');
 const {
-  logger, requireAnthropicKey, sendEmail,
-} = require('./seo-shared');
-const {
-  handleRegenerateExhibit, handlePublishDraft, handleGenerateArticle,
+  handleRegenerateExhibit,
+  handlePublishDraft,
+  handleGenerateArticle,
 } = require('./handlers/task-handlers');
 const {
   getClient,
-  ackTask, failTask,
-  downloadHeroImage, uploadExhibitToStorage, updatePublicationMetadata,
-  saveDraftContent, createNotification, fetchSiteAdmins,
+  ackTask,
+  failTask,
+  downloadHeroImage,
+  uploadExhibitToStorage,
+  updatePublicationMetadata,
+  saveDraftContent,
+  createNotification,
+  fetchSiteAdmins,
   markPublished,
 } = require('./calendar-connector');
 const { publishToSanity, uploadImageToSanity } = require('./seo-publish-article');
-
-
 
 // ─── Parse --task-id from CLI args ───────────────────────────
 
@@ -101,9 +103,16 @@ async function main() {
     // ── publish_draft action ──
     if (task.action === 'publish_draft') {
       await handlePublishDraft(task, {
-        dryRun: false, logPrefix: '  ', trailingNewline: true,
-        client: getClient(), ackTask, downloadHeroImage, uploadImageToSanity,
-        publishToSanity, fetchSiteAdmins, createNotification,
+        dryRun: false,
+        logPrefix: '  ',
+        trailingNewline: true,
+        client: getClient(),
+        ackTask,
+        downloadHeroImage,
+        uploadImageToSanity,
+        publishToSanity,
+        fetchSiteAdmins,
+        createNotification,
       });
       return;
     }
@@ -116,14 +125,23 @@ async function main() {
 
     // ── generate_article / other actions ──
     await handleGenerateArticle(task, {
-      apiKey, dryRun: false,
-      logPrefix: '  ', trailingNewline: true,
+      apiKey,
+      dryRun: false,
+      logPrefix: '  ',
+      trailingNewline: true,
       uploadExhibitsToStorage: true,
       announceTask: true,
-      logPublishedOk: true, logGenericOk: false,
-      client: getClient(), ackTask, downloadHeroImage, markPublished,
-      updatePublicationMetadata, saveDraftContent, createNotification,
-      fetchSiteAdmins, uploadExhibitToStorage,
+      logPublishedOk: true,
+      logGenericOk: false,
+      client: getClient(),
+      ackTask,
+      downloadHeroImage,
+      markPublished,
+      updatePublicationMetadata,
+      saveDraftContent,
+      createNotification,
+      fetchSiteAdmins,
+      uploadExhibitToStorage,
     });
   } catch (e) {
     logger.error(`Task ${taskId} failed: ${e.message.slice(0, 200)}`);

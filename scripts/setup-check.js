@@ -18,8 +18,17 @@ const REQUIRED_SECRETS = [
 ];
 
 const OPTIONAL_SECRETS = [
-  { name: 'anthropic', key: 'api_key', description: 'Anthropic API key (ou env ANTHROPIC_API_KEY)' },
-  { name: 'bfl', key: 'api_key', fallbackKey: 'BFL_API_KEY', description: 'BFL Flux API key (ou env BFL_API_KEY)' },
+  {
+    name: 'anthropic',
+    key: 'api_key',
+    description: 'Anthropic API key (ou env ANTHROPIC_API_KEY)',
+  },
+  {
+    name: 'bfl',
+    key: 'api_key',
+    fallbackKey: 'BFL_API_KEY',
+    description: 'BFL Flux API key (ou env BFL_API_KEY)',
+  },
   { name: 'microsoft-graph', key: 'client_id', description: 'Microsoft Graph (futur)' },
 ];
 
@@ -27,7 +36,9 @@ console.log('========================================');
 console.log('  Jarvis SEO — Setup Check');
 console.log('========================================\n');
 
-let ok = 0, warnings = 0, missing = 0;
+let ok = 0,
+  warnings = 0,
+  missing = 0;
 
 // Check required secrets
 console.log('  Secrets requis:');
@@ -55,7 +66,8 @@ for (const s of REQUIRED_SECRETS) {
 console.log('\n  Secrets optionnels:');
 for (const s of OPTIONAL_SECRETS) {
   const fp = path.join(PATHS.secrets, `${s.name}.json`);
-  const envKey = s.name === 'anthropic' ? 'ANTHROPIC_API_KEY' : (s.name === 'bfl' ? 'BFL_API_KEY' : null);
+  const envKey =
+    s.name === 'anthropic' ? 'ANTHROPIC_API_KEY' : s.name === 'bfl' ? 'BFL_API_KEY' : null;
   const hasEnv = envKey && process.env[envKey];
 
   if (hasEnv) {
@@ -100,11 +112,23 @@ if (nodeVersion >= 18) {
 
 // Check optional dependencies
 console.log('\n  Dependances optionnelles:');
-try { require('better-sqlite3'); console.log('  ✓ better-sqlite3'); ok++; }
-catch { console.log('  ~ better-sqlite3 — absent (JSON fallback actif)'); warnings++; }
+try {
+  require('better-sqlite3');
+  console.log('  ✓ better-sqlite3');
+  ok++;
+} catch {
+  console.log('  ~ better-sqlite3 — absent (JSON fallback actif)');
+  warnings++;
+}
 
-try { require('sharp'); console.log('  ✓ sharp'); ok++; }
-catch { console.log('  ~ sharp — absent (post-traitement images desactive)'); warnings++; }
+try {
+  require('sharp');
+  console.log('  ✓ sharp');
+  ok++;
+} catch {
+  console.log('  ~ sharp — absent (post-traitement images desactive)');
+  warnings++;
+}
 
 // Summary
 const total = REQUIRED_SECRETS.length + OPTIONAL_SECRETS.length + 3; // +3 for config, node, deps

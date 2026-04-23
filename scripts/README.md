@@ -102,13 +102,13 @@ node scripts/seo-publish-article.js --site fiduciaire-genevoise.ch --keyword "cr
 node scripts/seo-publish-article.js --site medcourtage.ch --keyword "rc pro medecin geneve" --force
 ```
 
-| Flag | Description |
-|------|-------------|
-| `--site` | Site cible (requis) |
-| `--keyword` | Mot-cle cible (requis) |
+| Flag        | Description                                |
+| ----------- | ------------------------------------------ |
+| `--site`    | Site cible (requis)                        |
+| `--keyword` | Mot-cle cible (requis)                     |
 | `--persona` | Persona (optionnel, auto-select si absent) |
-| `--dry-run` | Pas de publication, sauvegarde JSON |
-| `--force` | Ignore le check anti-duplication |
+| `--dry-run` | Pas de publication, sauvegarde JSON        |
+| `--force`   | Ignore le check anti-duplication           |
 
 Pipeline en 6 etapes :
 
@@ -158,16 +158,16 @@ Features :
 
 ## Personas (8)
 
-| Persona | Sites |
-|---------|-------|
-| Hugo Schaller | medcourtage.ch |
-| Amelie Bonvin | medcourtage.ch |
-| Marc Favre | fiduciaire-genevoise.ch, fiduciairevaudoise.ch |
-| Elodie Rochat | fiduciaire-genevoise.ch, fiduciairevaudoise.ch |
-| Lucas Morel | relocation-genevoise.ch |
-| Sofia Meier | relocation-genevoise.ch |
-| Philippe Dufour | assurance-genevoise.ch |
-| Nathalie Berger | assurance-genevoise.ch |
+| Persona         | Sites                                          |
+| --------------- | ---------------------------------------------- |
+| Hugo Schaller   | medcourtage.ch                                 |
+| Amelie Bonvin   | medcourtage.ch                                 |
+| Marc Favre      | fiduciaire-genevoise.ch, fiduciairevaudoise.ch |
+| Elodie Rochat   | fiduciaire-genevoise.ch, fiduciairevaudoise.ch |
+| Lucas Morel     | relocation-genevoise.ch                        |
+| Sofia Meier     | relocation-genevoise.ch                        |
+| Philippe Dufour | assurance-genevoise.ch                         |
+| Nathalie Berger | assurance-genevoise.ch                         |
 
 ## Cron suggere
 

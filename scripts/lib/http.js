@@ -18,24 +18,32 @@ function httpRequest(url, options) {
   return new Promise((resolve, reject) => {
     const p = new URL(url);
     const proto = p.protocol === 'https:' ? https : http;
-    const req = proto.request({
-      hostname: p.hostname,
-      port: p.port || undefined,
-      path: p.pathname + p.search,
-      method: opts.method || 'GET',
-      headers: opts.headers || {},
-    }, (res) => {
-      let data = '';
-      res.on('data', (c) => (data += c));
-      res.on('end', () => {
-        if (res.statusCode >= 400) {
-          reject(new Error(`HTTP ${res.statusCode}: ${sanitizeErrorMessage(data.slice(0, 300))}`));
-          return;
-        }
-        try { resolve(JSON.parse(data)); }
-        catch { resolve(data); }
-      });
-    });
+    const req = proto.request(
+      {
+        hostname: p.hostname,
+        port: p.port || undefined,
+        path: p.pathname + p.search,
+        method: opts.method || 'GET',
+        headers: opts.headers || {},
+      },
+      (res) => {
+        let data = '';
+        res.on('data', (c) => (data += c));
+        res.on('end', () => {
+          if (res.statusCode >= 400) {
+            reject(
+              new Error(`HTTP ${res.statusCode}: ${sanitizeErrorMessage(data.slice(0, 300))}`),
+            );
+            return;
+          }
+          try {
+            resolve(JSON.parse(data));
+          } catch {
+            resolve(data);
+          }
+        });
+      },
+    );
     req.on('error', reject);
     req.setTimeout(opts.timeout || TIMEOUTS.http, () => {
       req.destroy();

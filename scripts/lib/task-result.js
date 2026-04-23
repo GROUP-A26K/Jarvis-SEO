@@ -138,7 +138,10 @@ function finalizeSuccess(result) {
  * @param {boolean} [errorInfo.retryable=false] - L'erreur est-elle transitoire ?
  * @returns {object} Le meme objet, mute avec status + error + completedAt
  */
-function finalizeError(result, { code = ERROR_CODES.UNKNOWN, message = 'Unknown error', stage = null, retryable = false } = {}) {
+function finalizeError(
+  result,
+  { code = ERROR_CODES.UNKNOWN, message = 'Unknown error', stage = null, retryable = false } = {},
+) {
   const completedAt = new Date();
   result.status = 'error';
   result.error = { code, message, stage, retryable };

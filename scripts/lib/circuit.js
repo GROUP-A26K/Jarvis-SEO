@@ -29,7 +29,9 @@ function createCircuitBreaker(serviceName, opts) {
   }
 
   return {
-    get state() { return _circuitState[serviceName].state; },
+    get state() {
+      return _circuitState[serviceName].state;
+    },
 
     /** Verifie si le circuit autorise un appel */
     canExecute() {
@@ -61,7 +63,9 @@ function createCircuitBreaker(serviceName, opts) {
       s.lastFailure = Date.now();
       if (s.failures >= threshold) {
         s.state = 'open';
-        logger.warn(`Circuit breaker OUVERT: ${serviceName} (${s.failures} echecs consecutifs). Cooldown ${cooldownMs / 1000}s`);
+        logger.warn(
+          `Circuit breaker OUVERT: ${serviceName} (${s.failures} echecs consecutifs). Cooldown ${cooldownMs / 1000}s`,
+        );
       }
     },
 

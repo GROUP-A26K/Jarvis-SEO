@@ -1,6 +1,7 @@
 # CLAUDE.md — Jarvis SEO v7 (A26K Publication Pipeline)
 
 ## Projet
+
 Pipeline SEO automatise pour les sites du Groupe Genevoise (A26K, Suisse).
 Gap analysis, generation d'articles, images AI, publication Sanity CMS, rapports hebdo.
 
@@ -8,6 +9,7 @@ Gap analysis, generation d'articles, images AI, publication Sanity CMS, rapports
 **Lien Calendar** : Jarvis-Calendar (orchestration editoriale)
 
 ## Architecture
+
 ```
 scripts/
   seo-shared.js              # Module central (58 exports)
@@ -34,6 +36,7 @@ secrets/                     # .gitignore — JAMAIS commite
 ```
 
 ## Stack technique
+
 - **Runtime** : Node.js 18+ ESM
 - **CMS** : Sanity (projet ttza946i, dataset production, apiVersion 2024-01-01)
 - **SEO** : SEMrush API (rate limit 8 req/s, circuit breaker)
@@ -44,23 +47,25 @@ secrets/                     # .gitignore — JAMAIS commite
 
 ## Sites configures (7/9)
 
-| Domaine | documentType Sanity | Statut |
-|---------|-------------------|--------|
-| fiduciaire-genevoise.ch | `fiduciaireBlogPost` | Actif (95 docs) |
-| fiduciairevaudoise.ch | `fiduciaireVaudoiseBlogPost` | Actif (57 docs) |
-| relocation-genevoise.ch | `relocationBlogPost` | Actif (91 docs) |
-| medcourtage.ch | `medcourtageBlogPost` | Actif (50 docs) |
-| automotoplus.ch | `blogPost` | Actif (121 docs) |
-| immobiliere-genevoise.ch | `immobiliereBlogPost` | Actif (69 docs) |
-| assurance-genevoise.ch | `assuranceGenevoiseBlogPost` | Config (documentType a verifier) |
+| Domaine                  | documentType Sanity          | Statut                           |
+| ------------------------ | ---------------------------- | -------------------------------- |
+| fiduciaire-genevoise.ch  | `fiduciaireBlogPost`         | Actif (95 docs)                  |
+| fiduciairevaudoise.ch    | `fiduciaireVaudoiseBlogPost` | Actif (57 docs)                  |
+| relocation-genevoise.ch  | `relocationBlogPost`         | Actif (91 docs)                  |
+| medcourtage.ch           | `medcourtageBlogPost`        | Actif (50 docs)                  |
+| automotoplus.ch          | `blogPost`                   | Actif (121 docs)                 |
+| immobiliere-genevoise.ch | `immobiliereBlogPost`        | Actif (69 docs)                  |
+| assurance-genevoise.ch   | `assuranceGenevoiseBlogPost` | Config (documentType a verifier) |
 
 **Non configures** : golamalch.ch, prepafa.ch (pas encore setup dans Sanity)
 
 ## Mapping Calendar ↔ SEO
+
 Le domaine dans `websites.domain` (Supabase Calendar) doit correspondre exactement a la cle dans `sites/config.json`.
 Le `sanity_document_type` dans Supabase doit correspondre a `sanity.documentType` dans config.json.
 
 ## Commandes
+
 ```bash
 npm test                          # Tests unitaires
 npm run gap                       # Gap analysis (tous les sites)
@@ -79,6 +84,7 @@ npm run exhibits:dry              # Exhibit dry-run (SVG seul)
 ```
 
 ## Workflow quotidien (workflow-daily.js)
+
 1. Lit les publications du jour (status='scheduled', publish_date=today)
 2. Lit les jarvis_tasks pending dont `scheduled_at <= NOW()` (ou NULL pour legacy)
 3. Pour chaque publication/task, exécute `seo-publish-article.js`
@@ -86,11 +92,13 @@ npm run exhibits:dry              # Exhibit dry-run (SVG seul)
 5. Envoie un recap quotidien par email
 
 **Notifications post-publication** : email envoyé après chaque article publié.
+
 - Destinataires : `NOTIFY_EMAILS` env var (defaut: jeanbaptiste@a26k.ch, sebastien@a26k.ch, benjamin@a26k.ch)
 - Contenu : titre, URL, site, date, thème
 - Via Resend (secrets/resend.json)
 
 ## Deploiement GitHub Actions
+
 - **Workflow** : `.github/workflows/jarvis-daily.yml`
 - **Cron** : tous les jours a 5h30 UTC (= 7h30 UTC+2)
 - **Dispatch manuel** : possible via Actions > Run workflow
@@ -102,6 +110,7 @@ npm run exhibits:dry              # Exhibit dry-run (SVG seul)
   - `RESEND_API_KEY`, `RESEND_FROM` (notifications email)
 
 ## Intégration Calendar — Exhibits en mode draft
+
 - `seo-publish-article.js` : mode `--draft-only` génère aussi les exhibits (infographies PNG) via `seo-exhibits.js`
 - `workflow-single-task.js` : action `regenerate_exhibit` — régénère un exhibit spécifique avec prompt utilisateur optionnel
 - `calendar-connector.js` : `uploadExhibitToStorage()` — upload PNG vers Supabase Storage (bucket publication-files, path exhibits/{pub_id}/exhibit-N.png)
@@ -109,6 +118,7 @@ npm run exhibits:dry              # Exhibit dry-run (SVG seul)
 - draft_content.exhibits[] : `[{ altText, exhibitNumber, storagePath }]`
 
 ## Conventions
+
 - Node.js ESM, pas de Python
 - Zero SQL interpolation (mapping statique)
 - Zero `execSync` (uniquement `execFileSync`)
@@ -119,6 +129,7 @@ npm run exhibits:dry              # Exhibit dry-run (SVG seul)
 - Secrets dans `secrets/` (.gitignore), jamais dans le code
 
 ## Securite
+
 - Service_role key Supabase dans `secrets/supabase.json` — ne jamais exposer
 - Token Sanity Editor dans `secrets/sanity.json`
 - ANTHROPIC_API_KEY en variable d'environnement

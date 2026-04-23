@@ -124,44 +124,44 @@ scripts/lib/
 
 ## 4. Mapping détaillé : symbole → module cible
 
-| Symbole exporté | Module cible | Lignes source (approx) |
-|---|---|---|
-| `PATHS` | `lib/paths.js` | 35-55 |
-| `CLAUDE_MODEL`, `DEFAULT_MAX_TOKENS`, `CLAUDE_TIMEOUT_MS` | `lib/constants.js` | 56-60 |
-| `EMAIL_RECIPIENTS`, `MAX_ARTICLES_PER_WEEK` | `lib/constants.js` | 61-62 |
-| `DEFAULT_PLAN_UNITS`, `SEMRUSH_INTERVAL_MS` | `lib/constants.js` | 64-65 |
-| `VALID_PERSONAS` | `lib/constants.js` | 67-72 |
-| `TIMEOUTS`, `RETRY` | `lib/constants.js` | 73-99 |
-| `createCircuitBreaker`, `circuitBreakers`, `_circuitState` | `lib/circuit.js` | 100-170 |
-| `logger`, `LOG_LEVELS`, `_logLevel` | `lib/logger.js` | 171-203 |
-| `validateEnv` | `lib/env.js` | 204-236 |
-| `getApiKey` | `lib/env.js` | 237-261 |
-| `requireAnthropicKey` | `lib/env.js` | 262-271 |
-| `ensureDir`, `writeFileAtomic` | `lib/fs-utils.js` | 272-296 |
-| `readJSONSafe`, `writeJSONAtomic` | `lib/fs-utils.js` | 284-302 |
-| `acquireLock`, `withLockedJSON`, `cleanupLocks`, `_activeLocks` | `lib/locks.js` | 303-376 |
-| `loadSecret` | `lib/secrets.js` | 377-390 |
-| `loadSitesConfig`, `_sitesConfigCache` | `lib/config.js` | 391-403 |
-| `getSiteConfig`, `getSiteList`, `getSiteLabels`, `invalidateSitesConfigCache` | `lib/config.js` | 404-428 |
-| `getConfigMeta`, `getSanityDefaults`, `getSanityDocType` | `lib/config.js` | 429-454 |
-| `getPersonaDetails`, `getSitePersonas` | `lib/config.js` | 455-471 |
-| `getSiteFallbackCompetitors`, `getSiteSources`, `getSiteEntity`, `getSiteFinma`, `getSiteStableSources`, `getSiteExhibitStyle` | `lib/config.js` | 472-520 |
-| `httpRequest` | `lib/http.js` | 521-563 |
-| `esc`, `sanitize`, `sanitizeFilename`, `sanitizeSlug`, `sanitizeArticleForLLM`, `sanitizeErrorMessage` | `lib/sanitize.js` | 564-616 |
-| `lastRequestTime`, `requestQueue`, `SEMRUSH_SESSION_LIMIT`, `_semrushSession` | `lib/semrush.js` (internes) | 617-627 |
-| `semrushSessionGuard`, `semrushSessionRecord` | `lib/semrush.js` | 628-651 |
-| `rateLimitedSemrushGet`, `_throttledGet`, `sanitizeSemrushUrl`, `_semrushGetWithBackoff` | `lib/semrush.js` | 652-728 |
-| `tavilySearch` | `lib/tavily.js` | 729-783 |
-| `rateLimitedSemrushRequest`, `parseSemrushCSV`, `validateSemrushData` | `lib/semrush.js` | 784-829 |
-| `loadUnitsState`, `trackUnits`, `printUnitsSummary` | `lib/tracking.js` | 830-878 |
-| `callClaudeWithRetry`, `_callClaude`, `extractClaudeText` | `lib/claude.js` | 879-979 |
-| `verifyUrl` | `lib/verify.js` | 980-1014 |
-| `loadTrackedArticles`, `updateArticleField` | `lib/tracking.js` | 1015-1074 |
-| `loadLatestGapAnalysis` | `lib/tracking.js` | 1075-1087 |
-| `loadPipelineState`, `savePipelineState` | `lib/tracking.js` | 1088-1104 |
-| `sendEmail` | `lib/email.js` | 1105-1123 |
-| `validateArticleInput` | `lib/validation.js` | 1124-1138 |
-| `getISOWeek` | `lib/helpers.js` | 1139-1150 |
+| Symbole exporté                                                                                                                | Module cible                | Lignes source (approx) |
+| ------------------------------------------------------------------------------------------------------------------------------ | --------------------------- | ---------------------- |
+| `PATHS`                                                                                                                        | `lib/paths.js`              | 35-55                  |
+| `CLAUDE_MODEL`, `DEFAULT_MAX_TOKENS`, `CLAUDE_TIMEOUT_MS`                                                                      | `lib/constants.js`          | 56-60                  |
+| `EMAIL_RECIPIENTS`, `MAX_ARTICLES_PER_WEEK`                                                                                    | `lib/constants.js`          | 61-62                  |
+| `DEFAULT_PLAN_UNITS`, `SEMRUSH_INTERVAL_MS`                                                                                    | `lib/constants.js`          | 64-65                  |
+| `VALID_PERSONAS`                                                                                                               | `lib/constants.js`          | 67-72                  |
+| `TIMEOUTS`, `RETRY`                                                                                                            | `lib/constants.js`          | 73-99                  |
+| `createCircuitBreaker`, `circuitBreakers`, `_circuitState`                                                                     | `lib/circuit.js`            | 100-170                |
+| `logger`, `LOG_LEVELS`, `_logLevel`                                                                                            | `lib/logger.js`             | 171-203                |
+| `validateEnv`                                                                                                                  | `lib/env.js`                | 204-236                |
+| `getApiKey`                                                                                                                    | `lib/env.js`                | 237-261                |
+| `requireAnthropicKey`                                                                                                          | `lib/env.js`                | 262-271                |
+| `ensureDir`, `writeFileAtomic`                                                                                                 | `lib/fs-utils.js`           | 272-296                |
+| `readJSONSafe`, `writeJSONAtomic`                                                                                              | `lib/fs-utils.js`           | 284-302                |
+| `acquireLock`, `withLockedJSON`, `cleanupLocks`, `_activeLocks`                                                                | `lib/locks.js`              | 303-376                |
+| `loadSecret`                                                                                                                   | `lib/secrets.js`            | 377-390                |
+| `loadSitesConfig`, `_sitesConfigCache`                                                                                         | `lib/config.js`             | 391-403                |
+| `getSiteConfig`, `getSiteList`, `getSiteLabels`, `invalidateSitesConfigCache`                                                  | `lib/config.js`             | 404-428                |
+| `getConfigMeta`, `getSanityDefaults`, `getSanityDocType`                                                                       | `lib/config.js`             | 429-454                |
+| `getPersonaDetails`, `getSitePersonas`                                                                                         | `lib/config.js`             | 455-471                |
+| `getSiteFallbackCompetitors`, `getSiteSources`, `getSiteEntity`, `getSiteFinma`, `getSiteStableSources`, `getSiteExhibitStyle` | `lib/config.js`             | 472-520                |
+| `httpRequest`                                                                                                                  | `lib/http.js`               | 521-563                |
+| `esc`, `sanitize`, `sanitizeFilename`, `sanitizeSlug`, `sanitizeArticleForLLM`, `sanitizeErrorMessage`                         | `lib/sanitize.js`           | 564-616                |
+| `lastRequestTime`, `requestQueue`, `SEMRUSH_SESSION_LIMIT`, `_semrushSession`                                                  | `lib/semrush.js` (internes) | 617-627                |
+| `semrushSessionGuard`, `semrushSessionRecord`                                                                                  | `lib/semrush.js`            | 628-651                |
+| `rateLimitedSemrushGet`, `_throttledGet`, `sanitizeSemrushUrl`, `_semrushGetWithBackoff`                                       | `lib/semrush.js`            | 652-728                |
+| `tavilySearch`                                                                                                                 | `lib/tavily.js`             | 729-783                |
+| `rateLimitedSemrushRequest`, `parseSemrushCSV`, `validateSemrushData`                                                          | `lib/semrush.js`            | 784-829                |
+| `loadUnitsState`, `trackUnits`, `printUnitsSummary`                                                                            | `lib/tracking.js`           | 830-878                |
+| `callClaudeWithRetry`, `_callClaude`, `extractClaudeText`                                                                      | `lib/claude.js`             | 879-979                |
+| `verifyUrl`                                                                                                                    | `lib/verify.js`             | 980-1014               |
+| `loadTrackedArticles`, `updateArticleField`                                                                                    | `lib/tracking.js`           | 1015-1074              |
+| `loadLatestGapAnalysis`                                                                                                        | `lib/tracking.js`           | 1075-1087              |
+| `loadPipelineState`, `savePipelineState`                                                                                       | `lib/tracking.js`           | 1088-1104              |
+| `sendEmail`                                                                                                                    | `lib/email.js`              | 1105-1123              |
+| `validateArticleInput`                                                                                                         | `lib/validation.js`         | 1124-1138              |
+| `getISOWeek`                                                                                                                   | `lib/helpers.js`            | 1139-1150              |
 
 **Total mappé : 60 exports publics + symboles internes préservés.**
 
@@ -404,14 +404,14 @@ Pour garder la PR 0.2 focalisée et minimale :
 
 ## 10. Risques résiduels et mitigations
 
-| Risque | Probabilité | Impact | Mitigation |
-|---|---|---|---|
-| Dépendance circulaire découverte en cours de route | Faible | Élevé | Ordre par niveaux (§5) garantit un DAG |
-| Cache global cassé (2 instances de `_sitesConfigCache`) | Faible | Élevé | Règle : 1 cache = 1 module, jamais dupliqué |
-| Import manqué dans `seo-shared.js` re-exporter | Moyen | Élevé | Test : diff des 60 exports avant/après |
-| `cleanupLocks` (non exporté) cassé silencieusement | Moyen | Moyen | Relire ligne 353 et préserver handlers |
-| Timing de lecture de `process.env` différent | Faible | Faible | Charger `constants.js` tôt dans seo-shared.js |
-| Sentry reste OK ? | Faible | Moyen | `lib/sentry.js` déjà en place, non modifié |
+| Risque                                                  | Probabilité | Impact | Mitigation                                    |
+| ------------------------------------------------------- | ----------- | ------ | --------------------------------------------- |
+| Dépendance circulaire découverte en cours de route      | Faible      | Élevé  | Ordre par niveaux (§5) garantit un DAG        |
+| Cache global cassé (2 instances de `_sitesConfigCache`) | Faible      | Élevé  | Règle : 1 cache = 1 module, jamais dupliqué   |
+| Import manqué dans `seo-shared.js` re-exporter          | Moyen       | Élevé  | Test : diff des 60 exports avant/après        |
+| `cleanupLocks` (non exporté) cassé silencieusement      | Moyen       | Moyen  | Relire ligne 353 et préserver handlers        |
+| Timing de lecture de `process.env` différent            | Faible      | Faible | Charger `constants.js` tôt dans seo-shared.js |
+| Sentry reste OK ?                                       | Faible      | Moyen  | `lib/sentry.js` déjà en place, non modifié    |
 
 ---
 
@@ -448,4 +448,4 @@ Cette PR est plus grosse que PR 0.1 (1h30 chacune) mais plus mécanique. Le gros
 
 ---
 
-*Plan rédigé le 2026-04-17. À exécuter en PR 0.2 dans une session dédiée.*
+_Plan rédigé le 2026-04-17. À exécuter en PR 0.2 dans une session dédiée._

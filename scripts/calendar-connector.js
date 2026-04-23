@@ -56,7 +56,9 @@ async function fetchTodayPublications() {
     const today = new Date().toISOString().slice(0, 10);
     const { data, error } = await getClient()
       .from('publications')
-      .select('id, website_id, title, theme, brief, metadata, hero_image_path, websites(domain, sanity_document_type)')
+      .select(
+        'id, website_id, title, theme, brief, metadata, hero_image_path, websites(domain, sanity_document_type)',
+      )
       .eq('publish_date', today)
       .eq('status', 'scheduled');
 
@@ -174,7 +176,8 @@ async function failTask(taskId, errorMsg) {
  * @param {string} storagePath - path in the publication-files bucket
  * @returns {Promise<string>} - local temp file path
  */
-const HERO_PATH_RE = /^heroes\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/hero\.webp$/;
+const HERO_PATH_RE =
+  /^heroes\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/hero\.webp$/;
 
 async function downloadHeroImage(storagePath) {
   if (!HERO_PATH_RE.test(storagePath)) {
@@ -183,8 +186,7 @@ async function downloadHeroImage(storagePath) {
 
   return withBreaker('downloadHeroImage', async () => {
     const { data, error } = await getClient()
-      .storage
-      .from('publication-files')
+      .storage.from('publication-files')
       .download(storagePath);
 
     if (error) throw new Error(`downloadHeroImage: ${error.message}`);
@@ -209,9 +211,13 @@ async function uploadExhibitToStorage(publicationId, exhibitNumber, localPngPath
   return withBreaker('uploadExhibitToStorage', async () => {
     const storagePath = `exhibits/${publicationId}/exhibit-${exhibitNumber}.png`;
     const fileBuffer = fs.readFileSync(localPngPath);
-    const { error } = await getClient().storage
-      .from('publication-files')
-      .upload(storagePath, fileBuffer, { cacheControl: '3600', upsert: true, contentType: 'image/png' });
+    const { error } = await getClient()
+      .storage.from('publication-files')
+      .upload(storagePath, fileBuffer, {
+        cacheControl: '3600',
+        upsert: true,
+        contentType: 'image/png',
+      });
     if (error) throw new Error(`uploadExhibitToStorage: ${error.message}`);
     logger.info(`Exhibit ${exhibitNumber} uploaded: ${storagePath}`);
     return storagePath;
@@ -241,7 +247,9 @@ async function updatePublicationMetadata(publicationId, metadataUpdates) {
       .eq('id', publicationId);
 
     if (error) throw new Error(`updatePublicationMetadata: ${error.message}`);
-    logger.info(`Publication ${publicationId} metadata updated: ${JSON.stringify(metadataUpdates)}`);
+    logger.info(
+      `Publication ${publicationId} metadata updated: ${JSON.stringify(metadataUpdates)}`,
+    );
   });
 }
 
@@ -274,10 +282,14 @@ async function saveDraftContent(publicationId, draftJson) {
  */
 async function createNotification(userId, type, title, message, publicationId) {
   return withBreaker('createNotification', async () => {
-    const row = { user_id: userId, type, title, message: message || null, publication_id: publicationId || null };
-    const { error } = await getClient()
-      .from('notifications')
-      .insert(row);
+    const row = {
+      user_id: userId,
+      type,
+      title,
+      message: message || null,
+      publication_id: publicationId || null,
+    };
+    const { error } = await getClient().from('notifications').insert(row);
 
     if (error) throw new Error(`createNotification(${userId}): ${error.message}`);
     logger.info(`Notification created for ${userId}: ${type}`);

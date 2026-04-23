@@ -20,11 +20,23 @@ const path = require('path');
 const https = require('https');
 const crypto = require('crypto');
 const {
-  PATHS, CLAUDE_MODEL, logger, validateEnv, ensureDir, requireAnthropicKey, getApiKey,
-  callClaudeWithRetry, extractClaudeText,
-  sanitizeSlug, sanitizeArticleForLLM, sanitizeErrorMessage,
-  readJSONSafe, writeJSONAtomic,
-  TIMEOUTS, circuitBreakers, getSanityDefaults,
+  PATHS,
+  CLAUDE_MODEL,
+  logger,
+  validateEnv,
+  ensureDir,
+  requireAnthropicKey,
+  getApiKey,
+  callClaudeWithRetry,
+  extractClaudeText,
+  sanitizeSlug,
+  sanitizeArticleForLLM,
+  sanitizeErrorMessage,
+  readJSONSafe,
+  writeJSONAtomic,
+  TIMEOUTS,
+  circuitBreakers,
+  getSanityDefaults,
 } = require('./seo-shared');
 
 // ─── Config ──────────────────────────────────────────────────
@@ -54,9 +66,15 @@ const FLUX_MODEL_BY_ROLE = {
 function logEvent(event, details) {
   ensureDir(DATA_DIR);
   const entry = { timestamp: new Date().toISOString(), ...event, ...details };
-  try { fs.appendFileSync(LOG_PATH, JSON.stringify(entry) + '\n', 'utf-8'); } catch (e) { logger.debug("catch silencieux", { error: e.message }); }
+  try {
+    fs.appendFileSync(LOG_PATH, JSON.stringify(entry) + '\n', 'utf-8');
+  } catch (e) {
+    logger.debug('catch silencieux', { error: e.message });
+  }
   const icon = event.level === 'error' ? '!' : event.level === 'warn' ? '~' : '+';
-  console.log(`  ${icon} ${event.event}${details.image_role ? ` [${details.image_role}]` : ''}${details.duration_ms ? ` (${details.duration_ms}ms)` : ''}`);
+  console.log(
+    `  ${icon} ${event.event}${details.image_role ? ` [${details.image_role}]` : ''}${details.duration_ms ? ` (${details.duration_ms}ms)` : ''}`,
+  );
 }
 
 // ─── Persistent Files ────────────────────────────────────────
@@ -95,24 +113,55 @@ function saveLesson(site, lesson) {
 }
 
 function cacheKey(sector, role, thematicBrief) {
-  const keywords = thematicBrief.toLowerCase().replace(/[^a-z0-9àâäéèêëïîôùûüç\s]/g, '').split(/\s+/)
-    .filter((w) => w.length > 3).sort().slice(0, 5).join(' ');
-  return crypto.createHash('md5').update(`${sector}|${role}|${keywords}`).digest('hex').slice(0, 10);
+  const keywords = thematicBrief
+    .toLowerCase()
+    .replace(/[^a-z0-9àâäéèêëïîôùûüç\s]/g, '')
+    .split(/\s+/)
+    .filter((w) => w.length > 3)
+    .sort()
+    .slice(0, 5)
+    .join(' ');
+  return crypto
+    .createHash('md5')
+    .update(`${sector}|${role}|${keywords}`)
+    .digest('hex')
+    .slice(0, 10);
 }
 
 function lookupCache(sector, role, thematicBrief) {
   const data = loadJSONFile(CACHE_PATH, { max_entries: 200, entries: [] });
   const key = cacheKey(sector, role, thematicBrief);
-  return data.entries.find((e) => e.cache_key === key && e.sector === sector && e.role === role) || null;
+  return (
+    data.entries.find((e) => e.cache_key === key && e.sector === sector && e.role === role) || null
+  );
 }
 
 function saveToCache(sector, role, thematicBrief, prompt, cameraSetup) {
   const data = loadJSONFile(CACHE_PATH, { max_entries: 200, entries: [] });
   const key = cacheKey(sector, role, thematicBrief);
   const existing = data.entries.findIndex((e) => e.cache_key === key);
-  const entry = { cache_key: key, sector, role, theme_keywords: thematicBrief.toLowerCase().split(/\s+/).filter((w) => w.length > 3).sort().slice(0, 5), prompt, camera_setup: cameraSetup, pass_count: 1, last_used: new Date().toISOString().split('T')[0], created: new Date().toISOString().split('T')[0] };
-  if (existing >= 0) { entry.pass_count = (data.entries[existing].pass_count || 0) + 1; data.entries[existing] = entry; }
-  else { data.entries.push(entry); }
+  const entry = {
+    cache_key: key,
+    sector,
+    role,
+    theme_keywords: thematicBrief
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((w) => w.length > 3)
+      .sort()
+      .slice(0, 5),
+    prompt,
+    camera_setup: cameraSetup,
+    pass_count: 1,
+    last_used: new Date().toISOString().split('T')[0],
+    created: new Date().toISOString().split('T')[0],
+  };
+  if (existing >= 0) {
+    entry.pass_count = (data.entries[existing].pass_count || 0) + 1;
+    data.entries[existing] = entry;
+  } else {
+    data.entries.push(entry);
+  }
   if (data.entries.length > 200) data.entries = data.entries.slice(-200);
   saveJSONFile(CACHE_PATH, data);
 }
@@ -126,22 +175,44 @@ function httpPost(url, headers, body, timeoutMs) {
     const cleanHeaders = { ...headers };
     delete cleanHeaders['Content-Length'];
 
-    const req = https.request({ hostname: p.hostname, path: p.pathname + p.search, method: 'POST', headers: cleanHeaders }, (res) => {
-      let data = ''; res.on('data', (c) => (data += c));
-      res.on('end', () => {
-        // Response size guard (10MB max)
-        if (data.length > 10 * 1024 * 1024) {
-          reject(new Error(`Response trop grande: ${(data.length / 1024 / 1024).toFixed(1)}MB`));
-          return;
-        }
-        if (res.statusCode === 429) { reject(new Error('429')); return; }
-        if (res.statusCode >= 500) { reject(new Error(`${res.statusCode}`)); return; }
-        if (res.statusCode >= 400) { reject(new Error(`HTTP ${res.statusCode}: ${sanitizeErrorMessage(data.slice(0, 300))}`)); return; }
-        try { resolve(JSON.parse(data)); } catch (e) { resolve(data); }
-      });
-    });
+    const req = https.request(
+      { hostname: p.hostname, path: p.pathname + p.search, method: 'POST', headers: cleanHeaders },
+      (res) => {
+        let data = '';
+        res.on('data', (c) => (data += c));
+        res.on('end', () => {
+          // Response size guard (10MB max)
+          if (data.length > 10 * 1024 * 1024) {
+            reject(new Error(`Response trop grande: ${(data.length / 1024 / 1024).toFixed(1)}MB`));
+            return;
+          }
+          if (res.statusCode === 429) {
+            reject(new Error('429'));
+            return;
+          }
+          if (res.statusCode >= 500) {
+            reject(new Error(`${res.statusCode}`));
+            return;
+          }
+          if (res.statusCode >= 400) {
+            reject(
+              new Error(`HTTP ${res.statusCode}: ${sanitizeErrorMessage(data.slice(0, 300))}`),
+            );
+            return;
+          }
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            resolve(data);
+          }
+        });
+      },
+    );
     req.on('error', reject);
-    req.setTimeout(timeoutMs || TIMEOUTS.flux, () => { req.destroy(); reject(new Error('timeout')); });
+    req.setTimeout(timeoutMs || TIMEOUTS.flux, () => {
+      req.destroy();
+      reject(new Error('timeout'));
+    });
     const s = typeof body === 'string' ? body : JSON.stringify(body);
     req.setHeader('Content-Length', Buffer.byteLength(s));
     req.write(s);
@@ -152,9 +223,11 @@ function httpPost(url, headers, body, timeoutMs) {
 async function httpPostRetry(url, headers, body, maxRetries, timeoutMs) {
   const delays = [1000, 2000, 4000];
   for (let i = 0; i <= (maxRetries || 3); i++) {
-    try { return await httpPost(url, headers, body, timeoutMs || TIMEOUTS.flux); }
-    catch (e) {
-      const retryable = e.message === '429' || e.message.match(/^5\d\d$/) || e.message === 'timeout';
+    try {
+      return await httpPost(url, headers, body, timeoutMs || TIMEOUTS.flux);
+    } catch (e) {
+      const retryable =
+        e.message === '429' || e.message.match(/^5\d\d$/) || e.message === 'timeout';
       if (!retryable || i >= (maxRetries || 3)) throw e;
       const d = delays[Math.min(i, delays.length - 1)];
       logger.warn(`Flux retry ${i + 1} (${e.message}), ${d / 1000}s...`);
@@ -168,11 +241,52 @@ async function httpPostRetry(url, headers, body, maxRetries, timeoutMs) {
 
 // ─── Pre-validation programmatique ───────────────────────────
 
-const CAMERA_REGEX = /Sony A7|Canon R5|Canon R6|Canon 5D|Fujifilm X-T|Fujifilm GFX|Leica Q|Hasselblad|Nikon Z|Ricoh GR|Sigma fp|Pentax/i;
+const CAMERA_REGEX =
+  /Sony A7|Canon R5|Canon R6|Canon 5D|Fujifilm X-T|Fujifilm GFX|Leica Q|Hasselblad|Nikon Z|Ricoh GR|Sigma fp|Pentax/i;
 const FOCAL_REGEX = /\d+mm|f\/\d|f\d\.\d/i;
-const BANNED_TERMS = ['beautiful', 'stunning', 'amazing', 'gorgeous', 'breathtaking', 'high quality', 'ultra detailed', 'ultra-detailed', 'masterpiece', '4k', '8k', 'hdr', 'hyper-realistic', 'photorealistic', 'best quality', 'high resolution', 'highly detailed'];
-const NEGATIVE_PATTERNS = [/\bno\s/i, /\bnot\s/i, /\bdon't/i, /\bwithout\s/i, /\bnever\s/i, /\bavoid\s/i, /\bnone of\b/i];
-const CLICHE_PATTERNS = [/light bulb.*idea/i, /gears.*process/i, /handshake.*partner/i, /glowing brain/i, /globe.*international/i, /rising arrow/i, /puzzle.*solution/i, /shield.*secur/i, /magnifying glass.*search/i, /robot.*analyz/i, /holographic/i, /neon.*brain/i, /scales of justice/i];
+const BANNED_TERMS = [
+  'beautiful',
+  'stunning',
+  'amazing',
+  'gorgeous',
+  'breathtaking',
+  'high quality',
+  'ultra detailed',
+  'ultra-detailed',
+  'masterpiece',
+  '4k',
+  '8k',
+  'hdr',
+  'hyper-realistic',
+  'photorealistic',
+  'best quality',
+  'high resolution',
+  'highly detailed',
+];
+const NEGATIVE_PATTERNS = [
+  /\bno\s/i,
+  /\bnot\s/i,
+  /\bdon't/i,
+  /\bwithout\s/i,
+  /\bnever\s/i,
+  /\bavoid\s/i,
+  /\bnone of\b/i,
+];
+const CLICHE_PATTERNS = [
+  /light bulb.*idea/i,
+  /gears.*process/i,
+  /handshake.*partner/i,
+  /glowing brain/i,
+  /globe.*international/i,
+  /rising arrow/i,
+  /puzzle.*solution/i,
+  /shield.*secur/i,
+  /magnifying glass.*search/i,
+  /robot.*analyz/i,
+  /holographic/i,
+  /neon.*brain/i,
+  /scales of justice/i,
+];
 
 function prevalidatePrompt(prompt) {
   const errors = [];
@@ -181,9 +295,15 @@ function prevalidatePrompt(prompt) {
   const wc = prompt.split(/\s+/).length;
   if (wc < 30) errors.push(`Prompt trop court: ${wc} mots (min 30)`);
   if (wc > 80) errors.push(`Prompt trop long: ${wc} mots (max 80)`);
-  for (const term of BANNED_TERMS) { if (prompt.toLowerCase().includes(term)) errors.push(`Terme interdit: "${term}"`); }
-  for (const pat of NEGATIVE_PATTERNS) { if (pat.test(prompt)) errors.push(`Formulation negative detectee: ${pat.source}`); }
-  for (const pat of CLICHE_PATTERNS) { if (pat.test(prompt)) errors.push(`Cliche visuel detecte: ${pat.source}`); }
+  for (const term of BANNED_TERMS) {
+    if (prompt.toLowerCase().includes(term)) errors.push(`Terme interdit: "${term}"`);
+  }
+  for (const pat of NEGATIVE_PATTERNS) {
+    if (pat.test(prompt)) errors.push(`Formulation negative detectee: ${pat.source}`);
+  }
+  for (const pat of CLICHE_PATTERNS) {
+    if (pat.test(prompt)) errors.push(`Cliche visuel detecte: ${pat.source}`);
+  }
   return { valid: errors.length === 0, errors };
 }
 
@@ -234,10 +354,15 @@ Reponds UNIQUEMENT en JSON valide:
 
   // Agent 0 uses Haiku for structured tasks
   const resp = await callClaudeWithRetry(apiKey, system, userMsg, 2048);
-  const cleaned = extractClaudeText(resp).replace(/```json\s?|```/g, '').trim();
+  const cleaned = extractClaudeText(resp)
+    .replace(/```json\s?|```/g, '')
+    .trim();
   let plan;
-  try { plan = JSON.parse(cleaned); }
-  catch (e) { throw new Error(`Agent 0 JSON invalide: ${cleaned.slice(0, 200)}. ${e.message}`); }
+  try {
+    plan = JSON.parse(cleaned);
+  } catch (e) {
+    throw new Error(`Agent 0 JSON invalide: ${cleaned.slice(0, 200)}. ${e.message}`);
+  }
 
   logEvent({ level: 'info', event: 'agent0.complete' }, { duration_ms: Date.now() - t0 });
   return plan;
@@ -245,7 +370,16 @@ Reponds UNIQUEMENT en JSON valide:
 
 // ─── Agent 1 — Graphiste ─────────────────────────────────────
 
-async function runAgent1(apiKey, brief, articleExcerpt, siteContext, styleMemory, lessonsLearned, cachedPrompt, prevErrors) {
+async function runAgent1(
+  apiKey,
+  brief,
+  articleExcerpt,
+  siteContext,
+  styleMemory,
+  lessonsLearned,
+  cachedPrompt,
+  prevErrors,
+) {
   const system = `Tu es un graphiste editorial. Tu concois des prompts image pour Flux 2 (Black Forest Labs).
 Objectif absolu: images indiscernables de vraies photographies.
 
@@ -264,19 +398,35 @@ Reponds UNIQUEMENT en JSON:
 
   let userMsg = `<brief>\n${JSON.stringify(brief, null, 2)}\n</brief>\n\n<article_excerpt>\n${sanitizeArticleForLLM(articleExcerpt)}\n</article_excerpt>\n\n<site_context>\n${JSON.stringify(siteContext, null, 2)}\n</site_context>`;
 
-  if (styleMemory.length > 0) userMsg += `\n\n<style_memory>\n${JSON.stringify(styleMemory.slice(-10), null, 2)}\n</style_memory>`;
-  if (lessonsLearned.length > 0) userMsg += `\n\n<lessons_learned>\n${JSON.stringify(lessonsLearned.slice(-10), null, 2)}\n</lessons_learned>`;
+  if (styleMemory.length > 0)
+    userMsg += `\n\n<style_memory>\n${JSON.stringify(styleMemory.slice(-10), null, 2)}\n</style_memory>`;
+  if (lessonsLearned.length > 0)
+    userMsg += `\n\n<lessons_learned>\n${JSON.stringify(lessonsLearned.slice(-10), null, 2)}\n</lessons_learned>`;
   if (cachedPrompt) userMsg += `\n\n<cached_prompt>\n${cachedPrompt}\n</cached_prompt>`;
 
   const resp = await callClaudeWithRetry(apiKey, system, userMsg, 1500);
-  const cleaned = extractClaudeText(resp).replace(/```json\s?|```/g, '').trim();
-  try { return JSON.parse(cleaned); }
-  catch (e) { throw new Error(`Agent 1 JSON invalide: ${cleaned.slice(0, 200)}. ${e.message}`); }
+  const cleaned = extractClaudeText(resp)
+    .replace(/```json\s?|```/g, '')
+    .trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch (e) {
+    throw new Error(`Agent 1 JSON invalide: ${cleaned.slice(0, 200)}. ${e.message}`);
+  }
 }
 
 // ─── Agent 2 — Directeur Artistique (vision) ────────────────
 
-async function runAgent2(apiKey, imagesBase64, agent1Brief, articleExcerpt, siteContext, attemptNumber, budgetRemaining, styleMemory) {
+async function runAgent2(
+  apiKey,
+  imagesBase64,
+  agent1Brief,
+  articleExcerpt,
+  siteContext,
+  attemptNumber,
+  budgetRemaining,
+  styleMemory,
+) {
   const system = `Tu es le directeur artistique. Dernier rempart avant publication.
 Mission #1: AUCUNE image identifiable comme generee par IA ne doit passer.
 Mission #2: Chaque image doit appartenir naturellement au site.
@@ -291,16 +441,25 @@ Reponds UNIQUEMENT en JSON:
   // Build multimodal content with images
   const content = [];
   for (let i = 0; i < imagesBase64.length; i++) {
-    content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imagesBase64[i] } });
+    content.push({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/jpeg', data: imagesBase64[i] },
+    });
   }
-  content.push({ type: 'text', text: `<brief>\n${JSON.stringify(agent1Brief, null, 2)}\n</brief>\n\n<article_excerpt>\n${sanitizeArticleForLLM(articleExcerpt)}\n</article_excerpt>\n\n<site_context>\n${JSON.stringify(siteContext, null, 2)}\n</site_context>\n\n<attempt_number>${attemptNumber}</attempt_number>\n<budget_remaining>${JSON.stringify(budgetRemaining)}</budget_remaining>` });
+  content.push({
+    type: 'text',
+    text: `<brief>\n${JSON.stringify(agent1Brief, null, 2)}\n</brief>\n\n<article_excerpt>\n${sanitizeArticleForLLM(articleExcerpt)}\n</article_excerpt>\n\n<site_context>\n${JSON.stringify(siteContext, null, 2)}\n</site_context>\n\n<attempt_number>${attemptNumber}</attempt_number>\n<budget_remaining>${JSON.stringify(budgetRemaining)}</budget_remaining>`,
+  });
 
   // Use shared callClaudeWithRetry with vision messages (array format)
   const resp = await callClaudeWithRetry(apiKey, system, [{ role: 'user', content }], 2000);
 
   const text = extractClaudeText(resp);
-  try { return JSON.parse(text.replace(/```json\s?|```/g, '').trim()); }
-  catch (e) { throw new Error(`Agent 2 JSON invalide: ${text.slice(0, 200)}. ${e.message}`); }
+  try {
+    return JSON.parse(text.replace(/```json\s?|```/g, '').trim());
+  } catch (e) {
+    throw new Error(`Agent 2 JSON invalide: ${text.slice(0, 200)}. ${e.message}`);
+  }
 }
 
 // ─── Flux 2 API (async: submit + poll + download) ───────────
@@ -311,22 +470,48 @@ Reponds UNIQUEMENT en JSON:
 function httpGet(url, headers, timeoutMs) {
   return new Promise((resolve, reject) => {
     const p = new URL(url);
-    const req = https.request({
-      hostname: p.hostname, path: p.pathname + p.search, method: 'GET',
-      headers: headers || {},
-    }, (res) => {
-      let data = '';
-      res.on('data', (c) => (data += c));
-      res.on('end', () => {
-        if (data.length > 10 * 1024 * 1024) { reject(new Error('Response trop grande')); return; }
-        if (res.statusCode === 429) { reject(new Error('429')); return; }
-        if (res.statusCode >= 500) { reject(new Error(`${res.statusCode}`)); return; }
-        if (res.statusCode >= 400) { reject(new Error(`HTTP ${res.statusCode}: ${sanitizeErrorMessage(data.slice(0, 300))}`)); return; }
-        try { resolve(JSON.parse(data)); } catch (e) { resolve(data); }
-      });
-    });
+    const req = https.request(
+      {
+        hostname: p.hostname,
+        path: p.pathname + p.search,
+        method: 'GET',
+        headers: headers || {},
+      },
+      (res) => {
+        let data = '';
+        res.on('data', (c) => (data += c));
+        res.on('end', () => {
+          if (data.length > 10 * 1024 * 1024) {
+            reject(new Error('Response trop grande'));
+            return;
+          }
+          if (res.statusCode === 429) {
+            reject(new Error('429'));
+            return;
+          }
+          if (res.statusCode >= 500) {
+            reject(new Error(`${res.statusCode}`));
+            return;
+          }
+          if (res.statusCode >= 400) {
+            reject(
+              new Error(`HTTP ${res.statusCode}: ${sanitizeErrorMessage(data.slice(0, 300))}`),
+            );
+            return;
+          }
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            resolve(data);
+          }
+        });
+      },
+    );
     req.on('error', reject);
-    req.setTimeout(timeoutMs || 15000, () => { req.destroy(); reject(new Error('timeout')); });
+    req.setTimeout(timeoutMs || 15000, () => {
+      req.destroy();
+      reject(new Error('timeout'));
+    });
     req.end();
   });
 }
@@ -334,9 +519,11 @@ function httpGet(url, headers, timeoutMs) {
 async function httpGetRetry(url, headers, maxRetries, timeoutMs) {
   const delays = [1000, 2000, 4000];
   for (let i = 0; i <= (maxRetries || 2); i++) {
-    try { return await httpGet(url, headers, timeoutMs || 15000); }
-    catch (e) {
-      const retryable = e.message === '429' || e.message.match(/^5\d\d$/) || e.message === 'timeout';
+    try {
+      return await httpGet(url, headers, timeoutMs || 15000);
+    } catch (e) {
+      const retryable =
+        e.message === '429' || e.message.match(/^5\d\d$/) || e.message === 'timeout';
       if (!retryable || i >= (maxRetries || 2)) throw e;
       const d = delays[Math.min(i, delays.length - 1)];
       logger.warn(`Flux poll retry ${i + 1} (${e.message}), ${d / 1000}s...`);
@@ -356,28 +543,50 @@ function downloadUrl(url, timeoutMs, _redirectCount) {
   return new Promise((resolve, reject) => {
     const p = new URL(url);
     // Only allow HTTPS downloads
-    if (p.protocol !== 'https:') { reject(new Error(`Protocol non autorise: ${p.protocol}`)); return; }
+    if (p.protocol !== 'https:') {
+      reject(new Error(`Protocol non autorise: ${p.protocol}`));
+      return;
+    }
 
-    const req = https.request({
-      hostname: p.hostname, path: p.pathname + p.search, method: 'GET',
-    }, (res) => {
-      // Follow redirects (3xx) with depth limit
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        downloadUrl(res.headers.location, timeoutMs, redirects + 1).then(resolve).catch(reject);
-        return;
-      }
-      if (res.statusCode >= 400) { reject(new Error(`Download ${res.statusCode}`)); return; }
-      const chunks = [];
-      res.on('data', (c) => chunks.push(c));
-      res.on('end', () => {
-        const buffer = Buffer.concat(chunks);
-        if (buffer.length < 1024) { reject(new Error(`Image trop petite: ${buffer.length} bytes`)); return; }
-        if (buffer.length > 20 * 1024 * 1024) { reject(new Error(`Image trop grande: ${(buffer.length / 1024 / 1024).toFixed(1)}MB`)); return; }
-        resolve(buffer);
-      });
-    });
+    const req = https.request(
+      {
+        hostname: p.hostname,
+        path: p.pathname + p.search,
+        method: 'GET',
+      },
+      (res) => {
+        // Follow redirects (3xx) with depth limit
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          downloadUrl(res.headers.location, timeoutMs, redirects + 1)
+            .then(resolve)
+            .catch(reject);
+          return;
+        }
+        if (res.statusCode >= 400) {
+          reject(new Error(`Download ${res.statusCode}`));
+          return;
+        }
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => {
+          const buffer = Buffer.concat(chunks);
+          if (buffer.length < 1024) {
+            reject(new Error(`Image trop petite: ${buffer.length} bytes`));
+            return;
+          }
+          if (buffer.length > 20 * 1024 * 1024) {
+            reject(new Error(`Image trop grande: ${(buffer.length / 1024 / 1024).toFixed(1)}MB`));
+            return;
+          }
+          resolve(buffer);
+        });
+      },
+    );
     req.on('error', reject);
-    req.setTimeout(timeoutMs || 30000, () => { req.destroy(); reject(new Error('Download timeout')); });
+    req.setTimeout(timeoutMs || 30000, () => {
+      req.destroy();
+      reject(new Error('Download timeout'));
+    });
     req.end();
   });
 }
@@ -399,27 +608,39 @@ async function callFluxBatch(bflKey, prompt, aspectRatio, seeds, model) {
   }
 
   const fluxModel = model || 'flux-pro-1.1';
-  const dim = { '16:9': { w: 1024, h: 576 }, '4:3': { w: 1024, h: 768 }, '3:2': { w: 1024, h: 672 }, '1:1': { w: 1024, h: 1024 } };
+  const dim = {
+    '16:9': { w: 1024, h: 576 },
+    '4:3': { w: 1024, h: 768 },
+    '3:2': { w: 1024, h: 672 },
+    '1:1': { w: 1024, h: 1024 },
+  };
   const d = dim[aspectRatio] || dim['16:9'];
 
   // ── Step 1: Submit all seeds in parallel (EU endpoint) ──
-  const submitPromises = seeds.map((seed) =>
-    httpPostRetry(`https://api.eu.bfl.ai/v1/${fluxModel}`,
-      { 'Content-Type': 'application/json', 'x-key': bflKey },
-      { prompt, width: d.w, height: d.h, seed, output_format: 'jpeg', safety_tolerance: 2 },
-      3, 15000) // 15s max for submission only
+  const submitPromises = seeds.map(
+    (seed) =>
+      httpPostRetry(
+        `https://api.eu.bfl.ai/v1/${fluxModel}`,
+        { 'Content-Type': 'application/json', 'x-key': bflKey },
+        { prompt, width: d.w, height: d.h, seed, output_format: 'jpeg', safety_tolerance: 2 },
+        3,
+        15000,
+      ), // 15s max for submission only
   );
 
   const submitted = await Promise.allSettled(submitPromises);
   const tasks = [];
   for (let i = 0; i < submitted.length; i++) {
     if (submitted[i].status === 'fulfilled' && submitted[i].value && submitted[i].value.id) {
-      const pollingUrl = submitted[i].value.polling_url ||
+      const pollingUrl =
+        submitted[i].value.polling_url ||
         `https://api.eu.bfl.ai/v1/get_result?id=${encodeURIComponent(submitted[i].value.id)}`;
       tasks.push({ seed: seeds[i], taskId: submitted[i].value.id, pollingUrl });
       logger.debug(`Flux task soumise: seed=${seeds[i]} taskId=${submitted[i].value.id}`);
     } else {
-      logger.warn(`Seed ${seeds[i]} soumission echouee: ${submitted[i].reason?.message || 'no task id'}`);
+      logger.warn(
+        `Seed ${seeds[i]} soumission echouee: ${submitted[i].reason?.message || 'no task id'}`,
+      );
     }
   }
 
@@ -430,22 +651,18 @@ async function callFluxBatch(bflKey, prompt, aspectRatio, seeds, model) {
 
   // ── Step 2: Poll each task until Ready ──
   const POLL_INTERVAL = 3000; // 3s between polls
-  const MAX_POLLS = 40;       // 120s max per image
+  const MAX_POLLS = 40; // 120s max per image
 
   async function pollTask({ seed, taskId, pollingUrl }) {
     for (let poll = 0; poll < MAX_POLLS; poll++) {
       await new Promise((r) => setTimeout(r, POLL_INTERVAL));
 
       try {
-        const res = await httpGetRetry(
-          pollingUrl,
-          { 'x-key': bflKey },
-          1, 10000
-        );
+        const res = await httpGetRetry(pollingUrl, { 'x-key': bflKey }, 1, 10000);
 
         if (res.status === 'Ready') {
           const imageUrl = (res.result && res.result.sample) || (res.result && res.result.url);
-          if (!imageUrl) throw new Error('Ready mais pas d\'URL image');
+          if (!imageUrl) throw new Error("Ready mais pas d'URL image");
 
           // Step 3: Download the image
           logger.debug(`Flux task ${taskId}: Ready, download...`);
@@ -453,15 +670,20 @@ async function callFluxBatch(bflKey, prompt, aspectRatio, seeds, model) {
           return { seed, data: imgBuffer.toString('base64') };
         }
 
-        if (res.status === 'Error' || res.status === 'content_moderated' || res.status === 'request_moderated') {
+        if (
+          res.status === 'Error' ||
+          res.status === 'content_moderated' ||
+          res.status === 'request_moderated'
+        ) {
           throw new Error(`Flux status: ${res.status}`);
         }
 
         // Status is Pending or Processing — continue polling
         if (poll % 5 === 4) {
-          logger.debug(`Flux task ${taskId}: ${res.status || 'polling'}... (${(poll + 1) * POLL_INTERVAL / 1000}s)`);
+          logger.debug(
+            `Flux task ${taskId}: ${res.status || 'polling'}... (${((poll + 1) * POLL_INTERVAL) / 1000}s)`,
+          );
         }
-
       } catch (e) {
         // Network error during poll — retry on next interval unless fatal
         if (e.message.includes('Flux status:')) throw e;
@@ -469,7 +691,7 @@ async function callFluxBatch(bflKey, prompt, aspectRatio, seeds, model) {
         logger.debug(`Flux poll error (will retry): ${e.message}`);
       }
     }
-    throw new Error(`Flux task ${taskId}: timeout apres ${MAX_POLLS * POLL_INTERVAL / 1000}s`);
+    throw new Error(`Flux task ${taskId}: timeout apres ${(MAX_POLLS * POLL_INTERVAL) / 1000}s`);
   }
 
   // Poll all tasks in parallel
@@ -504,7 +726,12 @@ function randomSeeds(n) {
 
 async function postProcess(inputBuffer, pp) {
   let sharp;
-  try { sharp = require('sharp'); } catch { logger.warn('Sharp non installe, post-traitement ignore'); return inputBuffer; }
+  try {
+    sharp = require('sharp');
+  } catch {
+    logger.warn('Sharp non installe, post-traitement ignore');
+    return inputBuffer;
+  }
 
   let img = sharp(inputBuffer);
 
@@ -551,10 +778,17 @@ async function postProcess(inputBuffer, pp) {
     const cropPx = Math.round(Math.min(meta.width, meta.height) * pct);
     const dir = pp.crop_offset.direction || 'left';
     const extract = { left: 0, top: 0, width: meta.width, height: meta.height };
-    if (dir === 'left') { extract.left = cropPx; extract.width -= cropPx; }
-    else if (dir === 'right') { extract.width -= cropPx; }
-    else if (dir === 'up') { extract.top = cropPx; extract.height -= cropPx; }
-    else if (dir === 'down') { extract.height -= cropPx; }
+    if (dir === 'left') {
+      extract.left = cropPx;
+      extract.width -= cropPx;
+    } else if (dir === 'right') {
+      extract.width -= cropPx;
+    } else if (dir === 'up') {
+      extract.top = cropPx;
+      extract.height -= cropPx;
+    } else if (dir === 'down') {
+      extract.height -= cropPx;
+    }
     img = img.extract(extract);
   }
 
@@ -564,7 +798,18 @@ async function postProcess(inputBuffer, pp) {
 
 // ─── Process single image (full retry loop) ──────────────────
 
-async function processImage(apiKey, bflKey, brief, articleExcerpt, siteContext, styleMemory, lessonsLearned, budget, slug, dryRun) {
+async function processImage(
+  apiKey,
+  bflKey,
+  brief,
+  articleExcerpt,
+  siteContext,
+  styleMemory,
+  lessonsLearned,
+  budget,
+  slug,
+  dryRun,
+) {
   const role = brief.role || 'inline';
   const t0 = Date.now();
   let attempt = 0;
@@ -583,7 +828,16 @@ async function processImage(apiKey, bflKey, brief, articleExcerpt, siteContext, 
   // Agent 1: generate prompt (with pre-validation retry loop)
   let prevalErrors = null;
   for (let pv = 0; pv <= MAX_PREVALIDATION_RETRIES; pv++) {
-    agent1Result = await runAgent1(apiKey, brief, articleExcerpt, siteContext, styleMemory, lessonsLearned, cachedPrompt, prevalErrors);
+    agent1Result = await runAgent1(
+      apiKey,
+      brief,
+      articleExcerpt,
+      siteContext,
+      styleMemory,
+      lessonsLearned,
+      cachedPrompt,
+      prevalErrors,
+    );
     currentPrompt = agent1Result.prompt;
     logEvent({ level: 'info', event: 'agent1.complete' }, { image_role: role, attempt: pv });
 
@@ -592,7 +846,10 @@ async function processImage(apiKey, bflKey, brief, articleExcerpt, siteContext, 
       logEvent({ level: 'info', event: 'prevalidation.pass' }, { image_role: role });
       break;
     }
-    logEvent({ level: 'warn', event: 'prevalidation.fail' }, { image_role: role, errors: validation.errors });
+    logEvent(
+      { level: 'warn', event: 'prevalidation.fail' },
+      { image_role: role, errors: validation.errors },
+    );
     prevalErrors = validation.errors;
 
     if (pv === MAX_PREVALIDATION_RETRIES) {
@@ -600,7 +857,10 @@ async function processImage(apiKey, bflKey, brief, articleExcerpt, siteContext, 
       currentPrompt = agent1Result.fallback_prompt || currentPrompt;
       const fbValidation = prevalidatePrompt(currentPrompt);
       if (!fbValidation.valid) {
-        logEvent({ level: 'warn', event: 'prevalidation.fail' }, { image_role: role, errors: fbValidation.errors, fallback: true });
+        logEvent(
+          { level: 'warn', event: 'prevalidation.fail' },
+          { image_role: role, errors: fbValidation.errors, fallback: true },
+        );
       }
     }
   }
@@ -609,7 +869,17 @@ async function processImage(apiKey, bflKey, brief, articleExcerpt, siteContext, 
     // Dry-run: return prompt + metadata without calling Flux
     const filename = generateSEOFilename(slug, brief.thematic_brief, role);
     const altText = generateAltText(brief.thematic_brief, brief.must_convey, brief.keyword || '');
-    return { role, position: brief.position, prompt: currentPrompt, agent1Result, prevalidation: prevalidatePrompt(currentPrompt), filename, altText, status: 'dry_run', cost: { flux: 0, llm: 0 } };
+    return {
+      role,
+      position: brief.position,
+      prompt: currentPrompt,
+      agent1Result,
+      prevalidation: prevalidatePrompt(currentPrompt),
+      filename,
+      altText,
+      status: 'dry_run',
+      cost: { flux: 0, llm: 0 },
+    };
   }
 
   if (!bflKey) throw new Error('BFL_API_KEY non definie');
@@ -627,55 +897,97 @@ async function processImage(apiKey, bflKey, brief, articleExcerpt, siteContext, 
     logEvent({ level: 'info', event: 'flux.batch.start' }, { image_role: role, attempt, seeds });
 
     const fluxModel = FLUX_MODEL_BY_ROLE[role] || FLUX_MODEL_BY_ROLE.default;
-    const results = await callFluxBatch(bflKey, currentPrompt, brief.aspect_ratio || '16:9', seeds, fluxModel);
+    const results = await callFluxBatch(
+      bflKey,
+      currentPrompt,
+      brief.aspect_ratio || '16:9',
+      seeds,
+      fluxModel,
+    );
     budget.flux -= FLUX_SEEDS_PER_ROUND;
     fluxCallsConsumed += FLUX_SEEDS_PER_ROUND;
-    logEvent({ level: 'info', event: 'flux.batch.complete' }, { image_role: role, images: results.length });
+    logEvent(
+      { level: 'info', event: 'flux.batch.complete' },
+      { image_role: role, images: results.length },
+    );
 
     if (results.length === 0) {
-      logEvent({ level: 'error', event: 'flux.batch.error' }, { image_role: role, reason: 'no images returned' });
+      logEvent(
+        { level: 'error', event: 'flux.batch.error' },
+        { image_role: role, reason: 'no images returned' },
+      );
       continue;
     }
 
     // Extract base64 images for Agent 2
     // callFluxBatch now returns { seed, data: "base64string" } directly
-    const imagesB64 = results.map((r) => {
-      if (r.data && typeof r.data === 'string') return r.data;
-      return null;
-    }).filter((b64) => {
-      if (!b64) return false;
-      if (b64.length < 100) { logger.warn('Flux image trop petite, ignoree'); return false; }
-      if (b64.length > 20 * 1024 * 1024) { logger.warn('Flux image trop grande (>20MB), ignoree'); return false; }
-      // Basic JPEG header check (base64 of 0xFFD8FF)
-      try {
-        const header = Buffer.from(b64.slice(0, 8), 'base64');
-        if (header[0] !== 0xFF || header[1] !== 0xD8) {
-          logger.warn('Flux image non-JPEG detectee, ignoree');
+    const imagesB64 = results
+      .map((r) => {
+        if (r.data && typeof r.data === 'string') return r.data;
+        return null;
+      })
+      .filter((b64) => {
+        if (!b64) return false;
+        if (b64.length < 100) {
+          logger.warn('Flux image trop petite, ignoree');
           return false;
         }
-      } catch (e) {
-        logger.warn('Flux image base64 invalide', { error: e.message });
-        return false;
-      }
-      return true;
-    });
+        if (b64.length > 20 * 1024 * 1024) {
+          logger.warn('Flux image trop grande (>20MB), ignoree');
+          return false;
+        }
+        // Basic JPEG header check (base64 of 0xFFD8FF)
+        try {
+          const header = Buffer.from(b64.slice(0, 8), 'base64');
+          if (header[0] !== 0xff || header[1] !== 0xd8) {
+            logger.warn('Flux image non-JPEG detectee, ignoree');
+            return false;
+          }
+        } catch (e) {
+          logger.warn('Flux image base64 invalide', { error: e.message });
+          return false;
+        }
+        return true;
+      });
 
     if (imagesB64.length === 0) continue;
 
     // Agent 2: evaluate (check LLM vision budget)
     if (budget.llmVision <= 0) {
-      logEvent({ level: 'warn', event: 'budget.exhausted' }, { image_role: role, resource: 'llm_vision' });
+      logEvent(
+        { level: 'warn', event: 'budget.exhausted' },
+        { image_role: role, resource: 'llm_vision' },
+      );
       break;
     }
     budget.llmVision--;
-    const evaluation = await runAgent2(apiKey, imagesB64, agent1Result, articleExcerpt, siteContext, attempt, budget, styleMemory);
-    logEvent({ level: 'info', event: `evaluation.${evaluation.verdict.toLowerCase()}` }, { image_role: role, attempt });
+    const evaluation = await runAgent2(
+      apiKey,
+      imagesB64,
+      agent1Result,
+      articleExcerpt,
+      siteContext,
+      attempt,
+      budget,
+      styleMemory,
+    );
+    logEvent(
+      { level: 'info', event: `evaluation.${evaluation.verdict.toLowerCase()}` },
+      { image_role: role, attempt },
+    );
 
     if (evaluation.verdict === 'PASS' || evaluation.verdict === 'PASS_WITH_ADJUSTMENTS') {
       const selectedIdx = evaluation.selected_seed || 0;
-      const imageData = Buffer.from(imagesB64[Math.min(selectedIdx, imagesB64.length - 1)], 'base64');
-      try { finalImage = await postProcess(imageData, evaluation.post_processing || {}); }
-      catch (ppErr) { logger.warn(`Post-traitement echoue: ${ppErr.message}. Image brute utilisee.`); finalImage = imageData; }
+      const imageData = Buffer.from(
+        imagesB64[Math.min(selectedIdx, imagesB64.length - 1)],
+        'base64',
+      );
+      try {
+        finalImage = await postProcess(imageData, evaluation.post_processing || {});
+      } catch (ppErr) {
+        logger.warn(`Post-traitement echoue: ${ppErr.message}. Image brute utilisee.`);
+        finalImage = imageData;
+      }
       finalEval = evaluation;
       break;
     }
@@ -688,7 +1000,11 @@ async function processImage(apiKey, bflKey, brief, articleExcerpt, siteContext, 
 
     if (evaluation.verdict === 'RETRY_PROMPT' && evaluation.corrected_prompt) {
       currentPrompt = evaluation.corrected_prompt;
-      if (evaluation.feedback_record && evaluation.feedback_record.should_save_to_lessons_learned && evaluation.feedback_record.lesson) {
+      if (
+        evaluation.feedback_record &&
+        evaluation.feedback_record.should_save_to_lessons_learned &&
+        evaluation.feedback_record.lesson
+      ) {
         saveLesson(siteContext.secteur, evaluation.feedback_record.lesson);
       }
       continue;
@@ -700,16 +1016,35 @@ async function processImage(apiKey, bflKey, brief, articleExcerpt, siteContext, 
     }
 
     if (evaluation.verdict === 'FAIL') {
-      if (evaluation.feedback_record && evaluation.feedback_record.should_save_to_lessons_learned && evaluation.feedback_record.lesson) {
+      if (
+        evaluation.feedback_record &&
+        evaluation.feedback_record.should_save_to_lessons_learned &&
+        evaluation.feedback_record.lesson
+      ) {
         saveLesson(siteContext.secteur, evaluation.feedback_record.lesson);
       }
-      logEvent({ level: 'error', event: 'evaluation.fail' }, { image_role: role, unsplash: evaluation.unsplash_keywords });
-      return { role, position: brief.position, status: 'fail', unsplash_keywords: evaluation.unsplash_keywords || [], pexels_keywords: evaluation.pexels_keywords || [], cost: { flux: fluxCallsConsumed * 0.03, llm: 0.03 } };
+      logEvent(
+        { level: 'error', event: 'evaluation.fail' },
+        { image_role: role, unsplash: evaluation.unsplash_keywords },
+      );
+      return {
+        role,
+        position: brief.position,
+        status: 'fail',
+        unsplash_keywords: evaluation.unsplash_keywords || [],
+        pexels_keywords: evaluation.pexels_keywords || [],
+        cost: { flux: fluxCallsConsumed * 0.03, llm: 0.03 },
+      };
     }
   }
 
   if (!finalImage) {
-    return { role, position: brief.position, status: 'fail', cost: { flux: fluxCallsConsumed * 0.03, llm: 0.03 } };
+    return {
+      role,
+      position: brief.position,
+      status: 'fail',
+      cost: { flux: fluxCallsConsumed * 0.03, llm: 0.03 },
+    };
   }
 
   // Success: validate and save image, update feedback files
@@ -719,12 +1054,26 @@ async function processImage(apiKey, bflKey, brief, articleExcerpt, siteContext, 
 
   // Validate final image before writing
   if (!Buffer.isBuffer(finalImage) || finalImage.length < 1024) {
-    logger.error('Image finale invalide ou corrompue', { size: finalImage ? finalImage.length : 0 });
-    return { role, position: brief.position, status: 'fail', cost: { flux: fluxCallsConsumed * 0.03, llm: 0.03 } };
+    logger.error('Image finale invalide ou corrompue', {
+      size: finalImage ? finalImage.length : 0,
+    });
+    return {
+      role,
+      position: brief.position,
+      status: 'fail',
+      cost: { flux: fluxCallsConsumed * 0.03, llm: 0.03 },
+    };
   }
   if (finalImage.length > 15 * 1024 * 1024) {
-    logger.error('Image finale trop grande (>15MB)', { size_mb: (finalImage.length / 1024 / 1024).toFixed(1) });
-    return { role, position: brief.position, status: 'fail', cost: { flux: fluxCallsConsumed * 0.03, llm: 0.03 } };
+    logger.error('Image finale trop grande (>15MB)', {
+      size_mb: (finalImage.length / 1024 / 1024).toFixed(1),
+    });
+    return {
+      role,
+      position: brief.position,
+      status: 'fail',
+      cost: { flux: fluxCallsConsumed * 0.03, llm: 0.03 },
+    };
   }
 
   ensureDir(IMAGES_DIR);
@@ -732,17 +1081,42 @@ async function processImage(apiKey, bflKey, brief, articleExcerpt, siteContext, 
 
   if (finalEval.feedback_record) {
     if (finalEval.feedback_record.should_save_to_style_memory) {
-      saveToStyleMemory(siteContext.secteur, { date: new Date().toISOString().split('T')[0], article_slug: slug, image_role: role, prompt: currentPrompt, camera_setup: agent1Result.camera_setup, dominant_palette: agent1Result.dominant_palette, sector: siteContext.secteur });
+      saveToStyleMemory(siteContext.secteur, {
+        date: new Date().toISOString().split('T')[0],
+        article_slug: slug,
+        image_role: role,
+        prompt: currentPrompt,
+        camera_setup: agent1Result.camera_setup,
+        dominant_palette: agent1Result.dominant_palette,
+        sector: siteContext.secteur,
+      });
     }
     if (finalEval.feedback_record.should_save_to_prompt_cache) {
-      saveToCache(siteContext.secteur, role, brief.thematic_brief, currentPrompt, agent1Result.camera_setup);
+      saveToCache(
+        siteContext.secteur,
+        role,
+        brief.thematic_brief,
+        currentPrompt,
+        agent1Result.camera_setup,
+      );
     }
   }
 
   const sizeKb = Math.round(finalImage.length / 1024);
-  logEvent({ level: 'info', event: 'postprocessing.complete' }, { image_role: role, filename, sizeKb, duration_ms: Date.now() - t0 });
+  logEvent(
+    { level: 'info', event: 'postprocessing.complete' },
+    { image_role: role, filename, sizeKb, duration_ms: Date.now() - t0 },
+  );
 
-  return { role, position: brief.position, filename, altText, sizeKb, status: 'pass', cost: { flux: fluxCallsConsumed * 0.03, llm: 0.03 } };
+  return {
+    role,
+    position: brief.position,
+    filename,
+    altText,
+    sizeKb,
+    status: 'pass',
+    cost: { flux: fluxCallsConsumed * 0.03, llm: 0.03 },
+  };
 }
 
 // ─── Process single plan ─────────────────────────────────────
@@ -754,28 +1128,38 @@ async function processPlan(planPath, dryRun) {
   if (!plan) throw new Error(`Plan JSON invalide ou absent: ${planPath}`);
 
   const apiKey = requireAnthropicKey();
-  if (!plan.slug || sanitizeSlug(plan.slug).length === 0) throw new Error(`Plan sans slug valide (plan.slug = "${plan.slug}")`);
+  if (!plan.slug || sanitizeSlug(plan.slug).length === 0)
+    throw new Error(`Plan sans slug valide (plan.slug = "${plan.slug}")`);
   const bflKey = getApiKey('BFL_API_KEY', 'bfl', 'api_key');
   if (!bflKey && !dryRun) throw new Error('BFL_API_KEY manquante (env ou secrets/bfl.json)');
 
   // Load article from dry-run
-  if (!plan.dryRunPath || !fs.existsSync(plan.dryRunPath)) throw new Error(`Dry-run introuvable: ${plan.dryRunPath}`);
+  if (!plan.dryRunPath || !fs.existsSync(plan.dryRunPath))
+    throw new Error(`Dry-run introuvable: ${plan.dryRunPath}`);
   let dryRunData;
   dryRunData = readJSONSafe(plan.dryRunPath, null);
   if (!dryRunData) throw new Error(`Dry-run JSON invalide ou absent: ${plan.dryRunPath}`);
   const articleFR = dryRunData.articleFR;
   if (!articleFR) throw new Error('articleFR absent du dry-run');
 
-  const articleText = [articleFR.title, articleFR.summary, ...(articleFR.sections || []).map((s) => `## ${s.heading}\n${s.content}`), ...(articleFR.faq || []).map((f) => `Q: ${f.question}\nA: ${f.answer}`)].join('\n\n');
+  const articleText = [
+    articleFR.title,
+    articleFR.summary,
+    ...(articleFR.sections || []).map((s) => `## ${s.heading}\n${s.content}`),
+    ...(articleFR.faq || []).map((f) => `Q: ${f.question}\nA: ${f.answer}`),
+  ].join('\n\n');
 
   const siteContext = plan.siteContext || {};
   const styleMemory = loadStyleMemory(plan.site);
   const lessonsLearned = loadLessonsLearned(plan.site);
 
-  logEvent({ level: 'info', event: 'pipeline.start' }, { article_slug: plan.slug, site: plan.site });
+  logEvent(
+    { level: 'info', event: 'pipeline.start' },
+    { article_slug: plan.slug, site: plan.site },
+  );
 
   // Agent 0: illustration plan
-  console.log('\n> Agent 0 — Plan d\'illustration');
+  console.log("\n> Agent 0 — Plan d'illustration");
   const illPlan = await runAgent0(apiKey, articleText, siteContext, styleMemory);
   console.log(`  + ${(illPlan.illustration_plan || []).length} images planifiees`);
 
@@ -799,21 +1183,40 @@ async function processPlan(planPath, dryRun) {
   // Process each image (sequentially to manage budget)
   console.log('\n> Generation des images');
   const results = [];
-  let totalCostFlux = 0, totalCostLLM = 0;
+  let totalCostFlux = 0,
+    totalCostLLM = 0;
 
   for (const brief of illPlan.illustration_plan) {
     const excerpt = getExcerpt(brief.article_excerpt_range);
     console.log(`\n  >> ${brief.role}: "${(brief.thematic_brief || '').slice(0, 60)}..."`);
 
     try {
-      const result = await processImage(apiKey, bflKey, brief, excerpt, siteContext, styleMemory, lessonsLearned, budget, plan.slug, dryRun);
+      const result = await processImage(
+        apiKey,
+        bflKey,
+        brief,
+        excerpt,
+        siteContext,
+        styleMemory,
+        lessonsLearned,
+        budget,
+        plan.slug,
+        dryRun,
+      );
       results.push(result);
       totalCostFlux += (result.cost && result.cost.flux) || 0;
       totalCostLLM += (result.cost && result.cost.llm) || 0;
-      console.log(`  ${result.status === 'pass' || result.status === 'dry_run' ? '+' : '!'} ${result.role}: ${result.status}${result.filename ? ` -> ${result.filename}` : ''}`);
+      console.log(
+        `  ${result.status === 'pass' || result.status === 'dry_run' ? '+' : '!'} ${result.role}: ${result.status}${result.filename ? ` -> ${result.filename}` : ''}`,
+      );
     } catch (e) {
       console.error(`  ! ${brief.role} echoue: ${e.message}`);
-      results.push({ role: brief.role, position: brief.position, status: 'error', error: e.message.slice(0, 200) });
+      results.push({
+        role: brief.role,
+        position: brief.position,
+        status: 'error',
+        error: e.message.slice(0, 200),
+      });
     }
   }
 
@@ -821,14 +1224,25 @@ async function processPlan(planPath, dryRun) {
   const resultData = {
     slug: plan.slug,
     site: plan.site,
-    status: results.some((r) => r.status === 'pass' || r.status === 'dry_run') ? 'complete' : 'failed',
+    status: results.some((r) => r.status === 'pass' || r.status === 'dry_run')
+      ? 'complete'
+      : 'failed',
     illustrationPlan: illPlan,
-    images: results.filter((r) => r.status === 'pass' || r.status === 'dry_run').map((r) => ({
-      role: r.role, filename: r.filename, altText: r.altText, position: r.position,
-      sizeKb: r.sizeKb || 0,
-    })),
+    images: results
+      .filter((r) => r.status === 'pass' || r.status === 'dry_run')
+      .map((r) => ({
+        role: r.role,
+        filename: r.filename,
+        altText: r.altText,
+        position: r.position,
+        sizeKb: r.sizeKb || 0,
+      })),
     failedImages: results.filter((r) => r.status !== 'pass' && r.status !== 'dry_run'),
-    cost: { flux: Math.round(totalCostFlux * 100) / 100, llm: Math.round(totalCostLLM * 100) / 100, total: Math.round((totalCostFlux + totalCostLLM) * 100) / 100 },
+    cost: {
+      flux: Math.round(totalCostFlux * 100) / 100,
+      llm: Math.round(totalCostLLM * 100) / 100,
+      total: Math.round((totalCostFlux + totalCostLLM) * 100) / 100,
+    },
     completedAt: new Date().toISOString(),
     dryRun,
   };
@@ -837,13 +1251,22 @@ async function processPlan(planPath, dryRun) {
   ensureDir(IMAGES_DIR);
   saveJSONFile(resultPath, resultData);
 
-  logEvent({ level: 'info', event: 'pipeline.complete' }, {
-    article_slug: plan.slug, images_generated: resultData.images.length,
-    images_failed: resultData.failedImages.length, total_cost: resultData.cost.total,
-  });
+  logEvent(
+    { level: 'info', event: 'pipeline.complete' },
+    {
+      article_slug: plan.slug,
+      images_generated: resultData.images.length,
+      images_failed: resultData.failedImages.length,
+      total_cost: resultData.cost.total,
+    },
+  );
 
-  console.log(`\n+ ${resultData.images.length} images generees, ${resultData.failedImages.length} echecs`);
-  console.log(`  Cout: $${resultData.cost.total} (Flux: $${resultData.cost.flux}, LLM: $${resultData.cost.llm})`);
+  console.log(
+    `\n+ ${resultData.images.length} images generees, ${resultData.failedImages.length} echecs`,
+  );
+  console.log(
+    `  Cout: $${resultData.cost.total} (Flux: $${resultData.cost.flux}, LLM: $${resultData.cost.llm})`,
+  );
   console.log(`  Result: ${resultPath}`);
 
   return resultData;
@@ -862,14 +1285,25 @@ async function main() {
 
   if (cmd === '--plan' || cmd === '--dry-run') {
     const slug = args.find((a) => a !== '--plan' && a !== '--dry-run');
-    if (!slug) { console.error('Usage: node seo-images.js --plan <slug> [--dry-run]'); process.exit(1); }
+    if (!slug) {
+      console.error('Usage: node seo-images.js --plan <slug> [--dry-run]');
+      process.exit(1);
+    }
     const planPath = path.join(IMAGES_DIR, `plan-${sanitizeSlug(slug)}.json`);
-    if (!fs.existsSync(planPath)) { console.error(`Plan introuvable: ${planPath}`); process.exit(1); }
+    if (!fs.existsSync(planPath)) {
+      console.error(`Plan introuvable: ${planPath}`);
+      process.exit(1);
+    }
     await processPlan(planPath, dryRun);
   } else if (cmd === '--all') {
     ensureDir(IMAGES_DIR);
-    const plans = fs.readdirSync(IMAGES_DIR).filter((f) => f.startsWith('plan-') && f.endsWith('.json'));
-    if (plans.length === 0) { console.log('Aucun plan image en attente.'); return; }
+    const plans = fs
+      .readdirSync(IMAGES_DIR)
+      .filter((f) => f.startsWith('plan-') && f.endsWith('.json'));
+    if (plans.length === 0) {
+      console.log('Aucun plan image en attente.');
+      return;
+    }
 
     // Skip plans that already have a result
     const pending = plans.filter((p) => {
@@ -877,10 +1311,15 @@ async function main() {
       return !fs.existsSync(path.join(IMAGES_DIR, resultFile));
     });
 
-    console.log(`\n+ ${pending.length} plans en attente (${plans.length - pending.length} deja traites)`);
+    console.log(
+      `\n+ ${pending.length} plans en attente (${plans.length - pending.length} deja traites)`,
+    );
     for (const planFile of pending) {
-      try { await processPlan(path.join(IMAGES_DIR, planFile), dryRun); }
-      catch (e) { console.error(`\n! ${planFile}: ${e.message}`); }
+      try {
+        await processPlan(path.join(IMAGES_DIR, planFile), dryRun);
+      } catch (e) {
+        console.error(`\n! ${planFile}: ${e.message}`);
+      }
     }
   } else {
     console.log('Usage:');
@@ -896,7 +1335,10 @@ async function main() {
 
 // Only run main when executed directly (not when required as module)
 if (require.main === module) {
-  main().catch((err) => { console.error(`\n! Fatal: ${err.message}`); process.exit(1); });
+  main().catch((err) => {
+    console.error(`\n! Fatal: ${err.message}`);
+    process.exit(1);
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -923,16 +1365,17 @@ async function generateAndUploadImage(keyword, siteContext, bflKey, sanityToken,
   const lessonsLearned = loadLessonsLearned(siteContext.secteur || 'default');
 
   // Agent 0 — plan d'illustration (hero only for auto-generation)
-  logger.info('Image auto: Agent 0 — plan d\'illustration');
+  logger.info("Image auto: Agent 0 — plan d'illustration");
   const illPlan = await runAgent0(apiKey, articleText, siteContext, styleMemory);
 
   if (!illPlan.illustration_plan || illPlan.illustration_plan.length === 0) {
-    logger.warn('Image auto: Agent 0 n\'a produit aucun plan');
+    logger.warn("Image auto: Agent 0 n'a produit aucun plan");
     return null;
   }
 
   // Take only the hero image (first one)
-  const heroBrief = illPlan.illustration_plan.find((b) => b.role === 'hero') || illPlan.illustration_plan[0];
+  const heroBrief =
+    illPlan.illustration_plan.find((b) => b.role === 'hero') || illPlan.illustration_plan[0];
   heroBrief.role = 'hero';
   heroBrief.keyword = keyword;
 
@@ -940,7 +1383,18 @@ async function generateAndUploadImage(keyword, siteContext, bflKey, sanityToken,
   const budget = { flux: 6, llmVision: 3 }; // Limited budget for single image
 
   logger.info(`Image auto: generation "${(heroBrief.thematic_brief || '').slice(0, 50)}..."`);
-  const result = await processImage(apiKey, bflKey, heroBrief, articleText, siteContext, styleMemory, lessonsLearned, budget, slug, dryRun);
+  const result = await processImage(
+    apiKey,
+    bflKey,
+    heroBrief,
+    articleText,
+    siteContext,
+    styleMemory,
+    lessonsLearned,
+    budget,
+    slug,
+    dryRun,
+  );
 
   if (result.status !== 'pass' && result.status !== 'dry_run') {
     logger.warn(`Image auto: echec (${result.status})`, {
@@ -976,22 +1430,39 @@ async function generateAndUploadImage(keyword, siteContext, bflKey, sanityToken,
 
     const assetId = await new Promise((resolve, reject) => {
       const p = new URL(uploadUrl);
-      const req = https.request({
-        hostname: p.hostname, path: p.pathname + p.search, method: 'POST',
-        headers: { 'Content-Type': 'image/jpeg', 'Content-Length': imageBuffer.length, Authorization: `Bearer ${sanityToken}` },
-      }, (res) => {
-        let data = '';
-        res.on('data', (c) => (data += c));
-        res.on('end', () => {
-          if (res.statusCode >= 400) { reject(new Error(`Sanity upload ${res.statusCode}`)); return; }
-          try {
-            const r = JSON.parse(data);
-            resolve(r.document ? r.document._id : null);
-          } catch (e) { reject(new Error(`Sanity parse: ${e.message}`)); }
-        });
-      });
+      const req = https.request(
+        {
+          hostname: p.hostname,
+          path: p.pathname + p.search,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'image/jpeg',
+            'Content-Length': imageBuffer.length,
+            Authorization: `Bearer ${sanityToken}`,
+          },
+        },
+        (res) => {
+          let data = '';
+          res.on('data', (c) => (data += c));
+          res.on('end', () => {
+            if (res.statusCode >= 400) {
+              reject(new Error(`Sanity upload ${res.statusCode}`));
+              return;
+            }
+            try {
+              const r = JSON.parse(data);
+              resolve(r.document ? r.document._id : null);
+            } catch (e) {
+              reject(new Error(`Sanity parse: ${e.message}`));
+            }
+          });
+        },
+      );
       req.on('error', reject);
-      req.setTimeout(TIMEOUTS.sanity, () => { req.destroy(); reject(new Error('Sanity upload timeout')); });
+      req.setTimeout(TIMEOUTS.sanity, () => {
+        req.destroy();
+        reject(new Error('Sanity upload timeout'));
+      });
       req.write(imageBuffer);
       req.end();
     });
