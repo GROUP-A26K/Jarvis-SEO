@@ -17,7 +17,8 @@ node_modules/
 Thumbs.db
 
 # Editor
-.vscode/
+# .vscode/ ignored by default, but settings.json and extensions.json are versioned (see negations below — PR 1.2)
+.vscode/*
 .idea/
 *.swp
 *.swo
@@ -39,3 +40,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Versioned VS Code workspace files (PR 1.2)
+!.vscode/settings.json
+!.vscode/extensions.json
