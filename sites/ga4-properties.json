@@ -4,9 +4,9 @@
     "howToAdd": "Add domain key + propertyId. Then grant Viewer access to the service account on the GA4 property.",
     "pathDecision": "sites/ (co-localisation with config.json) — amendement checklist sealed lib/ → sites/"
   },
-  "fiduciaire-genevoise.ch": { "propertyId": "456013258" },
-  "fiduciairevaudoise.ch": { "propertyId": "515212797" },
-  "medcourtage.ch": { "propertyId": "518553284" },
-  "relocation-genevoise.ch": { "propertyId": "483368599" },
-  "immobiliere-genevoise.ch": { "propertyId": "510195526" }
+  "fiduciaire-genevoise.ch": { "slug": "fg", "propertyId": "456013258" },
+  "fiduciairevaudoise.ch": { "slug": "fv", "propertyId": "515212797" },
+  "medcourtage.ch": { "slug": "mc", "propertyId": "518553284" },
+  "relocation-genevoise.ch": { "slug": "rg", "propertyId": "483368599" },
+  "immobiliere-genevoise.ch": { "slug": "ig", "propertyId": "510195526" }
 }
