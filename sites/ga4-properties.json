@@ -1,0 +1,12 @@
+{
+  "_meta": {
+    "description": "GA4 Property IDs — Groupe Genevoise. Used by seo-weekly-report for Analytics Data API.",
+    "howToAdd": "Add domain key + propertyId. Then grant Viewer access to the service account on the GA4 property.",
+    "pathDecision": "sites/ (co-localisation with config.json) — amendement checklist sealed lib/ → sites/"
+  },
+  "fiduciaire-genevoise.ch": { "propertyId": "456013258" },
+  "fiduciairevaudoise.ch": { "propertyId": "515212797" },
+  "medcourtage.ch": { "propertyId": "518553284" },
+  "relocation-genevoise.ch": { "propertyId": "483368599" },
+  "immobiliere-genevoise.ch": { "propertyId": "510195526" }
+}
