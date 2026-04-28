@@ -14,7 +14,7 @@ export type SiteEntry = {
 export async function loadSiteMapping(path: string): Promise<SiteEntry[]> {
   const raw = JSON.parse(await Deno.readTextFile(path));
   return Object.entries(raw)
-    .filter(([key]) => !key.startsWith("_"))
+    .filter(([key]) => !key.startsWith('_'))
     .map(([domain, value]) => {
       const v = value as { slug: string; propertyId: string };
       return { domain, slug: v.slug, propertyId: v.propertyId };

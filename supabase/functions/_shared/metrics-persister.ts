@@ -3,7 +3,7 @@
 // HASH-partitioned table per D-2026-04-27-ga4-storage, with RLS
 // enforcement on client_id per D-2026-04-27-ga4-multi-tenant-timing.
 
-import type { OverallMetrics, PageMetrics } from "./schema.ts";
+import type { OverallMetrics, PageMetrics } from './schema.ts';
 
 export type PersistPayload = {
   client_id: string;
@@ -30,10 +30,7 @@ export interface MetricsPersister {
 export const defaultMetricsPersister: MetricsPersister = {
   persist(payload: PersistPayload): Promise<PersistResult> {
     const overallRows = payload.sites.filter((s) => s.overall !== null).length;
-    const pageRows = payload.sites.reduce(
-      (sum, s) => sum + s.per_page.length,
-      0,
-    );
+    const pageRows = payload.sites.reduce((sum, s) => sum + s.per_page.length, 0);
     const total = overallRows + pageRows;
 
     console.log(

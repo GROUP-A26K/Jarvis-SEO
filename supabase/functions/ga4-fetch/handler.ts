@@ -11,20 +11,14 @@ import {
   type OverallMetrics,
   type PageMetrics,
   type SiteMetrics,
-} from "../_shared/schema.ts";
-import {
-  defaultGa4Client,
-  type GA4Client,
-} from "../_shared/ga4-client.ts";
+} from '../_shared/schema.ts';
+import { defaultGa4Client, type GA4Client } from '../_shared/ga4-client.ts';
 import {
   defaultMetricsPersister,
   type MetricsPersister,
   type PersistPayload,
-} from "../_shared/metrics-persister.ts";
-import {
-  loadSiteMapping,
-  type SiteEntry,
-} from "../_shared/site-mapping.ts";
+} from '../_shared/metrics-persister.ts';
+import { loadSiteMapping, type SiteEntry } from '../_shared/site-mapping.ts';
 
 // Path resolution skeleton: import.meta.url + ../../../sites/...
 // Suffisant pour deno test/run local. Au swap E6, le déploiement Supabase
@@ -32,10 +26,8 @@ import {
 // supabase/functions/_shared/, ou (c) fetch depuis URL public. Décision
 // déférée à la PR swap E6 selon les constraints réelles du runtime
 // Supabase Edge constatées au smoke test E5.
-const DEFAULT_SITE_MAPPING_PATH = new URL(
-  "../../../sites/ga4-properties.json",
-  import.meta.url,
-).pathname;
+const DEFAULT_SITE_MAPPING_PATH = new URL('../../../sites/ga4-properties.json', import.meta.url)
+  .pathname;
 
 const EMPTY_AGGREGATES: Aggregates = {
   total_sessions_all_sites: 0,
@@ -59,30 +51,18 @@ function getErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-function deriveStatus(
-  sites: SiteMetrics[],
-  errors: ErrorEntry[],
-): GA4FetchResponse["status"] {
-  if (sites.length === 0) return "error";
+function deriveStatus(sites: SiteMetrics[], errors: ErrorEntry[]): GA4FetchResponse['status'] {
+  if (sites.length === 0) return 'error';
   const sitesWithData = sites.filter((s) => s.overall !== null).length;
-  if (sitesWithData === 0) return "error";
-  if (sitesWithData === sites.length && errors.length === 0) return "ok";
-  return "partial";
+  if (sitesWithData === 0) return 'error';
+  if (sitesWithData === sites.length && errors.length === 0) return 'ok';
+  return 'partial';
 }
 
-function deriveAggregates(
-  sites: SiteMetrics[],
-  errors: ErrorEntry[],
-): Aggregates {
+function deriveAggregates(sites: SiteMetrics[], errors: ErrorEntry[]): Aggregates {
   return {
-    total_sessions_all_sites: sites.reduce(
-      (acc, s) => acc + (s.overall?.sessions ?? 0),
-      0,
-    ),
-    total_users_all_sites: sites.reduce(
-      (acc, s) => acc + (s.overall?.users ?? 0),
-      0,
-    ),
+    total_sessions_all_sites: sites.reduce((acc, s) => acc + (s.overall?.sessions ?? 0), 0),
+    total_users_all_sites: sites.reduce((acc, s) => acc + (s.overall?.users ?? 0), 0),
     sites_with_data: sites.filter((s) => s.overall !== null).length,
     sites_with_errors: errors.filter((e) => e.site_slug !== undefined).length,
   };
@@ -91,18 +71,18 @@ function deriveAggregates(
 function jsonResponse(httpStatus: number, body: GA4FetchResponse): Response {
   return new Response(JSON.stringify(body), {
     status: httpStatus,
-    headers: { "content-type": "application/json" },
+    headers: { 'content-type': 'application/json' },
   });
 }
 
 function buildEarlyErrorResponse(
-  scope: ErrorEntry["scope"],
+  scope: ErrorEntry['scope'],
   message: string,
   clientId: string,
   period: { start: string; end: string },
 ): GA4FetchResponse {
   return {
-    status: "error",
+    status: 'error',
     data: { sites: [], aggregates: EMPTY_AGGREGATES },
     errors: [{ scope, message, caught_at: nowIso() }],
     meta: {
@@ -126,21 +106,21 @@ export async function handleFetch(
   const siteMappingPath = deps?.siteMappingPath ?? DEFAULT_SITE_MAPPING_PATH;
 
   // Step 1: ENV CHECK GRACIEUX (M11)
-  const clientId = Deno.env.get("A26K_CLIENT_ID");
+  const clientId = Deno.env.get('A26K_CLIENT_ID');
   if (!clientId) {
     const body = buildEarlyErrorResponse(
-      "unknown",
-      "A26K_CLIENT_ID env variable is required but undefined",
-      "",
+      'unknown',
+      'A26K_CLIENT_ID env variable is required but undefined',
+      '',
       placeholderPeriod(),
     );
     return jsonResponse(500, GA4FetchResponseSchema.parse(body));
   }
 
   // Step 2: METHOD CHECK
-  if (req.method !== "POST") {
+  if (req.method !== 'POST') {
     const body = buildEarlyErrorResponse(
-      "schema",
+      'schema',
       `Method ${req.method} not allowed; expected POST`,
       clientId,
       placeholderPeriod(),
@@ -154,7 +134,7 @@ export async function handleFetch(
     rawBody = await req.json();
   } catch (err) {
     const body = buildEarlyErrorResponse(
-      "schema",
+      'schema',
       `Invalid JSON body: ${getErrorMessage(err)}`,
       clientId,
       placeholderPeriod(),
@@ -165,7 +145,7 @@ export async function handleFetch(
   const requestParsed = GA4FetchRequestSchema.safeParse(rawBody);
   if (!requestParsed.success) {
     const body = buildEarlyErrorResponse(
-      "schema",
+      'schema',
       `Invalid request: ${requestParsed.error.message}`,
       clientId,
       placeholderPeriod(),
@@ -180,7 +160,7 @@ export async function handleFetch(
     mapping = await loadSiteMapping(siteMappingPath);
   } catch (err) {
     const body = buildEarlyErrorResponse(
-      "unknown",
+      'unknown',
       `Failed to load site mapping: ${getErrorMessage(err)}`,
       clientId,
       request.period,
@@ -195,8 +175,8 @@ export async function handleFetch(
 
   if (filteredMapping.length === 0) {
     const body = buildEarlyErrorResponse(
-      "schema",
-      "No matching sites for requested slugs",
+      'schema',
+      'No matching sites for requested slugs',
       clientId,
       request.period,
     );
@@ -211,14 +191,11 @@ export async function handleFetch(
     let per_page: PageMetrics[] = [];
     try {
       overall = await ga4Client.fetchOverall(entry.propertyId);
-      per_page = await ga4Client.fetchPerPage(
-        entry.propertyId,
-        overall.sessions,
-      );
+      per_page = await ga4Client.fetchPerPage(entry.propertyId, overall.sessions);
     } catch (err) {
       errors.push({
         site_slug: entry.slug,
-        scope: "unknown",
+        scope: 'unknown',
         message: getErrorMessage(err),
         property_id: entry.propertyId,
         caught_at: nowIso(),
@@ -249,16 +226,14 @@ export async function handleFetch(
     const persistResult = await persister.persist(payload);
     if (!persistResult.ok) {
       errors.push({
-        scope: "unknown",
-        message: `metrics persistence failed: ${
-          persistResult.errors.join("; ")
-        }`,
+        scope: 'unknown',
+        message: `metrics persistence failed: ${persistResult.errors.join('; ')}`,
         caught_at: nowIso(),
       });
     }
   } catch (err) {
     errors.push({
-      scope: "unknown",
+      scope: 'unknown',
       message: `metrics persistence failed: ${getErrorMessage(err)}`,
       caught_at: nowIso(),
     });
@@ -280,6 +255,6 @@ export async function handleFetch(
 
   // Validate before return (defense in depth — handler bug shows up here)
   const validated = GA4FetchResponseSchema.parse(response);
-  const httpStatus = status === "error" ? 500 : 200;
+  const httpStatus = status === 'error' ? 500 : 200;
   return jsonResponse(httpStatus, validated);
 }

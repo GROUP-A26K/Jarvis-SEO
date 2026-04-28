@@ -3,25 +3,22 @@
 // Threshold logic per D-2026-04-27-ga4-granularity:
 //   page included if (sessions/overall > 1%) OR (sessions > 100).
 
-import type { OverallMetrics, PageMetrics } from "./schema.ts";
+import type { OverallMetrics, PageMetrics } from './schema.ts';
 
 export interface GA4Client {
   fetchOverall(propertyId: string): Promise<OverallMetrics>;
-  fetchPerPage(
-    propertyId: string,
-    overallSessions: number,
-  ): Promise<PageMetrics[]>;
+  fetchPerPage(propertyId: string, overallSessions: number): Promise<PageMetrics[]>;
 }
 
 // Static propertyId → slug inversed map mirroring sites/ga4-properties.json.
 // Kept inline (rather than via loadSiteMapping) for skeleton simplicity:
 // no IO dependency, deterministic, easily replaced wholesale at E6 swap.
 const PROPERTY_TO_SLUG: Record<string, string> = {
-  "456013258": "fg",
-  "515212797": "fv",
-  "518553284": "mc",
-  "483368599": "rg",
-  "510195526": "ig",
+  '456013258': 'fg',
+  '515212797': 'fv',
+  '518553284': 'mc',
+  '483368599': 'rg',
+  '510195526': 'ig',
 };
 
 const CANNED_DATA: Record<string, OverallMetrics> = {
@@ -42,15 +39,15 @@ type PageFixture = {
 // Each entry declares pct of overall site traffic + engagement offset to
 // produce plausible per-page engagement rate.
 const PAGE_FIXTURES: PageFixture[] = [
-  { path: "/", pct: 0.35, engagementOffset: 0.0 },
-  { path: "/services", pct: 0.17, engagementOffset: -0.02 },
-  { path: "/contact", pct: 0.12, engagementOffset: 0.05 },
-  { path: "/about", pct: 0.07, engagementOffset: -0.03 },
-  { path: "/blog", pct: 0.05, engagementOffset: 0.02 },
-  { path: "/blog/post-1", pct: 0.025, engagementOffset: 0.04 },
-  { path: "/blog/post-2", pct: 0.015, engagementOffset: 0.01 },
-  { path: "/legal", pct: 0.005, engagementOffset: -0.05 },
-  { path: "/404", pct: 0.001, engagementOffset: -0.1 },
+  { path: '/', pct: 0.35, engagementOffset: 0.0 },
+  { path: '/services', pct: 0.17, engagementOffset: -0.02 },
+  { path: '/contact', pct: 0.12, engagementOffset: 0.05 },
+  { path: '/about', pct: 0.07, engagementOffset: -0.03 },
+  { path: '/blog', pct: 0.05, engagementOffset: 0.02 },
+  { path: '/blog/post-1', pct: 0.025, engagementOffset: 0.04 },
+  { path: '/blog/post-2', pct: 0.015, engagementOffset: 0.01 },
+  { path: '/legal', pct: 0.005, engagementOffset: -0.05 },
+  { path: '/404', pct: 0.001, engagementOffset: -0.1 },
 ];
 
 function clamp(value: number, min: number, max: number): number {
@@ -65,34 +62,22 @@ function lookupSlug(propertyId: string): string {
   return slug;
 }
 
-function derivePage(
-  fixture: PageFixture,
-  overall: OverallMetrics,
-): PageMetrics | null {
+function derivePage(fixture: PageFixture, overall: OverallMetrics): PageMetrics | null {
   const sessions = Math.round(overall.sessions * fixture.pct);
-  const pctMatch = overall.sessions > 0 &&
-    sessions / overall.sessions > 0.01;
+  const pctMatch = overall.sessions > 0 && sessions / overall.sessions > 0.01;
   const absMatch = sessions > 100;
   if (!pctMatch && !absMatch) return null;
 
-  const userRatio = overall.sessions > 0
-    ? overall.users / overall.sessions
-    : 0;
-  const eventRatio = overall.sessions > 0
-    ? overall.key_events / overall.sessions
-    : 0;
+  const userRatio = overall.sessions > 0 ? overall.users / overall.sessions : 0;
+  const eventRatio = overall.sessions > 0 ? overall.key_events / overall.sessions : 0;
   const users = Math.round(sessions * userRatio);
-  const engagement_rate = clamp(
-    overall.engagement_rate + fixture.engagementOffset,
-    0,
-    1,
-  );
+  const engagement_rate = clamp(overall.engagement_rate + fixture.engagementOffset, 0, 1);
   const key_events = Math.round(sessions * eventRatio);
 
-  let threshold_match: PageMetrics["threshold_match"];
-  if (pctMatch && absMatch) threshold_match = "both";
-  else if (pctMatch) threshold_match = "pct_traffic";
-  else threshold_match = "absolute_volume";
+  let threshold_match: PageMetrics['threshold_match'];
+  if (pctMatch && absMatch) threshold_match = 'both';
+  else if (pctMatch) threshold_match = 'pct_traffic';
+  else threshold_match = 'absolute_volume';
 
   return {
     page_path: fixture.path,
@@ -113,19 +98,16 @@ export const defaultGa4Client: GA4Client = {
     }
     return Promise.resolve({ ...data });
   },
-  fetchPerPage(
-    propertyId: string,
-    overallSessions: number,
-  ): Promise<PageMetrics[]> {
+  fetchPerPage(propertyId: string, overallSessions: number): Promise<PageMetrics[]> {
     const slug = lookupSlug(propertyId);
     const data = CANNED_DATA[slug];
     if (!data) {
       throw new Error(`Mock GA4 client: no canned data for slug "${slug}"`);
     }
     const overall: OverallMetrics = { ...data, sessions: overallSessions };
-    const pages = PAGE_FIXTURES
-      .map((f) => derivePage(f, overall))
-      .filter((p): p is PageMetrics => p !== null);
+    const pages = PAGE_FIXTURES.map((f) => derivePage(f, overall)).filter(
+      (p): p is PageMetrics => p !== null,
+    );
     return Promise.resolve(pages);
   },
 };

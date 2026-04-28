@@ -1,7 +1,7 @@
 // per M7 spec, Zod pinned at v3.22.4.
 // Canal: npm: via deno.json import map — Supabase Edge Functions standard pour Deno 2.x.
 // Reference: https://supabase.com/docs/guides/functions/dependencies
-import { z } from "zod";
+import { z } from 'zod';
 
 // --- Component schemas (response payload) ---
 
@@ -15,7 +15,7 @@ export type OverallMetrics = z.infer<typeof OverallMetricsSchema>;
 
 export const PageMetricsSchema = OverallMetricsSchema.extend({
   page_path: z.string().min(1),
-  threshold_match: z.enum(["pct_traffic", "absolute_volume", "both"]),
+  threshold_match: z.enum(['pct_traffic', 'absolute_volume', 'both']),
 });
 export type PageMetrics = z.infer<typeof PageMetricsSchema>;
 
@@ -28,11 +28,9 @@ export const SiteMetricsSchema = z.object({
     .max(20)
     .regex(
       /^[a-z0-9-]+$/,
-      "slug must be lowercase URL-safe per D-2026-04-28-site-naming-convention",
+      'slug must be lowercase URL-safe per D-2026-04-28-site-naming-convention',
     ),
-  property_id: z
-    .string()
-    .regex(/^\d{8,12}$/, "GA4 property_id must be 8-12 digits"),
+  property_id: z.string().regex(/^\d{8,12}$/, 'GA4 property_id must be 8-12 digits'),
   overall: OverallMetricsSchema.nullable(),
   per_page: z.array(PageMetricsSchema),
 });
@@ -51,7 +49,7 @@ export const ErrorEntrySchema = z.object({
     .string()
     .regex(/^[a-z0-9-]+$/)
     .optional(),
-  scope: z.enum(["auth", "quota", "network", "schema", "unknown"]),
+  scope: z.enum(['auth', 'quota', 'network', 'schema', 'unknown']),
   message: z.string().min(1),
   property_id: z
     .string()
@@ -64,7 +62,7 @@ export type ErrorEntry = z.infer<typeof ErrorEntrySchema>;
 // --- Top-level response schema (canonical contract per D-2026-04-27-ga4-ui) ---
 
 export const GA4FetchResponseSchema = z.object({
-  status: z.enum(["ok", "partial", "error"]),
+  status: z.enum(['ok', 'partial', 'error']),
   data: z.object({
     sites: z.array(SiteMetricsSchema),
     aggregates: AggregatesSchema,
@@ -89,10 +87,9 @@ export const GA4FetchRequestSchema = z.object({
       start: z.string().datetime({ offset: true }),
       end: z.string().datetime({ offset: true }),
     })
-    .refine(
-      (p) => new Date(p.end).getTime() >= new Date(p.start).getTime(),
-      { message: "period.end must be >= period.start" },
-    ),
+    .refine((p) => new Date(p.end).getTime() >= new Date(p.start).getTime(), {
+      message: 'period.end must be >= period.start',
+    }),
   sites: z.array(z.string().regex(/^[a-z0-9-]+$/)).optional(),
 });
 export type GA4FetchRequest = z.infer<typeof GA4FetchRequestSchema>;
