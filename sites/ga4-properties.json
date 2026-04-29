@@ -8,5 +8,8 @@
   "fiduciairevaudoise.ch": { "slug": "fv", "propertyId": "515212797" },
   "medcourtage.ch": { "slug": "mc", "propertyId": "518553284" },
   "relocation-genevoise.ch": { "slug": "rg", "propertyId": "483368599" },
-  "immobiliere-genevoise.ch": { "slug": "ig", "propertyId": "510195526" }
+  "immobiliere-genevoise.ch": { "slug": "ig", "propertyId": "510195526" },
+  "assurance-genevoise.ch": { "slug": "ag", "propertyId": "464994879" },
+  "casapic.com": { "slug": "cp", "propertyId": "520118761" },
+  "golamal.ch": { "slug": "gl", "propertyId": "535175664" }
 }
