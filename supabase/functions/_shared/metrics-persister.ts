@@ -117,9 +117,7 @@ export const defaultMetricsPersister: MetricsPersister = {
         ignoreDuplicates: false,
       });
       if (error) {
-        errors.push(
-          `batch ${Math.floor(i / BATCH_SIZE)} (${batch.length} rows): ${error.message}`,
-        );
+        errors.push(`batch ${Math.floor(i / BATCH_SIZE)} (${batch.length} rows): ${error.message}`);
       } else {
         rows_persisted += batch.length;
       }
