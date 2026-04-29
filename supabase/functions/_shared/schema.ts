@@ -3,6 +3,19 @@
 // Reference: https://supabase.com/docs/guides/functions/dependencies
 import { z } from 'zod';
 
+// --- Period (request window) ---
+
+export const PeriodSchema = z.object({
+  start: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/),
+  end: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/),
+});
+export type Period = z.infer<typeof PeriodSchema>;
+
+// Date format YYYY-MM-DD : colonne metrics_traffic.date (DATE Postgres) +
+// retour daily du GA4 client (post-conversion depuis GA4 dimension date YYYYMMDD).
+export const DateStringSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD');
+export type DateString = z.infer<typeof DateStringSchema>;
+
 // --- Component schemas (response payload) ---
 
 export const OverallMetricsSchema = z.object({
@@ -18,6 +31,23 @@ export const PageMetricsSchema = OverallMetricsSchema.extend({
   threshold_match: z.enum(['pct_traffic', 'absolute_volume', 'both']),
 });
 export type PageMetrics = z.infer<typeof PageMetricsSchema>;
+
+// --- Daily granularity (storage + GA4 client return shape) ---
+// DailyOverall : 1 row par jour pour un site (dimension_type='overall' en DB).
+export const DailyOverallSchema = OverallMetricsSchema.extend({
+  date: DateStringSchema,
+});
+export type DailyOverall = z.infer<typeof DailyOverallSchema>;
+
+// DailyPerPage : 1 row par jour×page (dimension_type='per_page' en DB, dimension_key=page_path).
+// PAS de threshold_match — calculé sur l'agrégat per-page côté handler
+// (Q3 dynamique : pct_traffic > 1% OR absolute > 100 sessions sur la PÉRIODE,
+// pas par jour individuel — sinon trop de bruit).
+export const DailyPerPageSchema = OverallMetricsSchema.extend({
+  date: DateStringSchema,
+  page_path: z.string().min(1),
+});
+export type DailyPerPage = z.infer<typeof DailyPerPageSchema>;
 
 // M9: slug lowercase URL-safe per D-2026-04-28-site-naming-convention.
 // M1: property_id 8-12 digits (GA4 vintages varient, marge volontaire).
@@ -72,8 +102,8 @@ export const GA4FetchResponseSchema = z.object({
     fetched_at: z.string().datetime({ offset: true }),
     client_id: z.string(),
     period: z.object({
-      start: z.string().datetime({ offset: true }),
-      end: z.string().datetime({ offset: true }),
+      start: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/),
+      end: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/),
     }),
   }),
 });
@@ -84,8 +114,8 @@ export type GA4FetchResponse = z.infer<typeof GA4FetchResponseSchema>;
 export const GA4FetchRequestSchema = z.object({
   period: z
     .object({
-      start: z.string().datetime({ offset: true }),
-      end: z.string().datetime({ offset: true }),
+      start: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/),
+      end: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/),
     })
     .refine((p) => new Date(p.end).getTime() >= new Date(p.start).getTime(), {
       message: 'period.end must be >= period.start',
