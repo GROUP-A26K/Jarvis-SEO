@@ -1,13 +1,17 @@
-// Mock GA4 client — canned data per slug for skeleton-only.
-// SWAP E6: real implementation will use @google-analytics/data SDK.
-// Threshold logic per D-2026-04-27-ga4-granularity:
-//   page included if (sessions/overall > 1%) OR (sessions > 100).
+// Mock GA4 client — daily fixtures. Skeleton-only.
+// SWAP E6 (commit 4) : defaultGa4Client body remplacé par real GA4 Data API.
+// Threshold logic vit côté handler (calcul sur agrégat per-page, pas par jour).
+// Interface stable inter-commits : tests injectent leurs propres mocks via DI.
 
-import type { OverallMetrics, PageMetrics } from './schema.ts';
+import type { DailyOverall, DailyPerPage, Period } from './schema.ts';
 
 export interface GA4Client {
-  fetchOverall(propertyId: string): Promise<OverallMetrics>;
-  fetchPerPage(propertyId: string, overallSessions: number): Promise<PageMetrics[]>;
+  fetchOverall(propertyId: string, period: Period): Promise<DailyOverall[]>;
+  fetchPerPage(
+    propertyId: string,
+    period: Period,
+    overallByDate: Record<string, number>,
+  ): Promise<DailyPerPage[]>;
 }
 
 // Static propertyId → slug inversed map mirroring sites/ga4-properties.json.
@@ -21,7 +25,14 @@ const PROPERTY_TO_SLUG: Record<string, string> = {
   '510195526': 'ig',
 };
 
-const CANNED_DATA: Record<string, OverallMetrics> = {
+type SiteFixture = {
+  sessions: number;
+  users: number;
+  engagement_rate: number;
+  key_events: number;
+};
+
+const CANNED_DATA: Record<string, SiteFixture> = {
   fg: { sessions: 4250, users: 3180, engagement_rate: 0.62, key_events: 47 },
   fv: { sessions: 1840, users: 1420, engagement_rate: 0.58, key_events: 19 },
   mc: { sessions: 720, users: 560, engagement_rate: 0.71, key_events: 11 },
@@ -29,30 +40,17 @@ const CANNED_DATA: Record<string, OverallMetrics> = {
   ig: { sessions: 1560, users: 1180, engagement_rate: 0.55, key_events: 22 },
 };
 
-type PageFixture = {
-  path: string;
-  pct: number;
-  engagementOffset: number;
-};
-
 // Page distribution per site (sums to ~80%, rest = long tail not enumerated).
-// Each entry declares pct of overall site traffic + engagement offset to
-// produce plausible per-page engagement rate.
-const PAGE_FIXTURES: PageFixture[] = [
-  { path: '/', pct: 0.35, engagementOffset: 0.0 },
-  { path: '/services', pct: 0.17, engagementOffset: -0.02 },
-  { path: '/contact', pct: 0.12, engagementOffset: 0.05 },
-  { path: '/about', pct: 0.07, engagementOffset: -0.03 },
-  { path: '/blog', pct: 0.05, engagementOffset: 0.02 },
-  { path: '/blog/post-1', pct: 0.025, engagementOffset: 0.04 },
-  { path: '/blog/post-2', pct: 0.015, engagementOffset: 0.01 },
-  { path: '/legal', pct: 0.005, engagementOffset: -0.05 },
-  { path: '/404', pct: 0.001, engagementOffset: -0.1 },
+const PAGE_FIXTURES: Array<{ path: string; pct: number }> = [
+  { path: '/', pct: 0.35 },
+  { path: '/services', pct: 0.17 },
+  { path: '/contact', pct: 0.12 },
+  { path: '/about', pct: 0.07 },
+  { path: '/blog', pct: 0.05 },
+  { path: '/blog/post-1', pct: 0.025 },
+  { path: '/blog/post-2', pct: 0.015 },
+  { path: '/legal', pct: 0.005 },
 ];
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
 
 function lookupSlug(propertyId: string): string {
   const slug = PROPERTY_TO_SLUG[propertyId];
@@ -62,52 +60,73 @@ function lookupSlug(propertyId: string): string {
   return slug;
 }
 
-function derivePage(fixture: PageFixture, overall: OverallMetrics): PageMetrics | null {
-  const sessions = Math.round(overall.sessions * fixture.pct);
-  const pctMatch = overall.sessions > 0 && sessions / overall.sessions > 0.01;
-  const absMatch = sessions > 100;
-  if (!pctMatch && !absMatch) return null;
-
-  const userRatio = overall.sessions > 0 ? overall.users / overall.sessions : 0;
-  const eventRatio = overall.sessions > 0 ? overall.key_events / overall.sessions : 0;
-  const users = Math.round(sessions * userRatio);
-  const engagement_rate = clamp(overall.engagement_rate + fixture.engagementOffset, 0, 1);
-  const key_events = Math.round(sessions * eventRatio);
-
-  let threshold_match: PageMetrics['threshold_match'];
-  if (pctMatch && absMatch) threshold_match = 'both';
-  else if (pctMatch) threshold_match = 'pct_traffic';
-  else threshold_match = 'absolute_volume';
-
-  return {
-    page_path: fixture.path,
-    sessions,
-    users,
-    engagement_rate,
-    key_events,
-    threshold_match,
-  };
+// Enumerate inclusive daily date strings YYYY-MM-DD spanning the period.
+// Period start/end are ISO datetime offset (request-validated) — slice(0,10) is safe.
+function enumerateDates(period: Period): string[] {
+  const startDate = period.start.slice(0, 10);
+  const endDate = period.end.slice(0, 10);
+  const dates: string[] = [];
+  const cur = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  while (cur.getTime() <= end.getTime()) {
+    dates.push(cur.toISOString().slice(0, 10));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return dates;
 }
 
 export const defaultGa4Client: GA4Client = {
-  fetchOverall(propertyId: string): Promise<OverallMetrics> {
+  fetchOverall(propertyId: string, period: Period): Promise<DailyOverall[]> {
     const slug = lookupSlug(propertyId);
     const data = CANNED_DATA[slug];
     if (!data) {
       throw new Error(`Mock GA4 client: no canned data for slug "${slug}"`);
     }
-    return Promise.resolve({ ...data });
-  },
-  fetchPerPage(propertyId: string, overallSessions: number): Promise<PageMetrics[]> {
-    const slug = lookupSlug(propertyId);
-    const data = CANNED_DATA[slug];
-    if (!data) {
-      throw new Error(`Mock GA4 client: no canned data for slug "${slug}"`);
-    }
-    const overall: OverallMetrics = { ...data, sessions: overallSessions };
-    const pages = PAGE_FIXTURES.map((f) => derivePage(f, overall)).filter(
-      (p): p is PageMetrics => p !== null,
+    const dates = enumerateDates(period);
+    if (dates.length === 0) return Promise.resolve([]);
+    const sessions = Math.floor(data.sessions / dates.length);
+    const users = Math.floor(data.users / dates.length);
+    const key_events = Math.floor(data.key_events / dates.length);
+    return Promise.resolve(
+      dates.map((date) => ({
+        date,
+        sessions,
+        users,
+        engagement_rate: data.engagement_rate,
+        key_events,
+      })),
     );
-    return Promise.resolve(pages);
+  },
+  fetchPerPage(
+    propertyId: string,
+    period: Period,
+    _overallByDate: Record<string, number>,
+  ): Promise<DailyPerPage[]> {
+    const slug = lookupSlug(propertyId);
+    const data = CANNED_DATA[slug];
+    if (!data) {
+      throw new Error(`Mock GA4 client: no canned data for slug "${slug}"`);
+    }
+    const dates = enumerateDates(period);
+    if (dates.length === 0) return Promise.resolve([]);
+    const userRatio = data.sessions > 0 ? data.users / data.sessions : 0;
+    const eventRatio = data.sessions > 0 ? data.key_events / data.sessions : 0;
+    const sitePerDay = Math.floor(data.sessions / dates.length);
+    const out: DailyPerPage[] = [];
+    for (const date of dates) {
+      for (const fixture of PAGE_FIXTURES) {
+        const sessions = Math.round(sitePerDay * fixture.pct);
+        if (sessions === 0) continue;
+        out.push({
+          date,
+          page_path: fixture.path,
+          sessions,
+          users: Math.round(sessions * userRatio),
+          engagement_rate: data.engagement_rate,
+          key_events: Math.round(sessions * eventRatio),
+        });
+      }
+    }
+    return Promise.resolve(out);
   },
 };
