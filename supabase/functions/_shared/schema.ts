@@ -13,9 +13,7 @@ export type Period = z.infer<typeof PeriodSchema>;
 
 // Date format YYYY-MM-DD : colonne metrics_traffic.date (DATE Postgres) +
 // retour daily du GA4 client (post-conversion depuis GA4 dimension date YYYYMMDD).
-export const DateStringSchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD');
+export const DateStringSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD');
 export type DateString = z.infer<typeof DateStringSchema>;
 
 // --- Component schemas (response payload) ---
