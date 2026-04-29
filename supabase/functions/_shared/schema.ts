@@ -6,8 +6,8 @@ import { z } from 'zod';
 // --- Period (request window) ---
 
 export const PeriodSchema = z.object({
-  start: z.string().datetime({ offset: true }),
-  end: z.string().datetime({ offset: true }),
+  start: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/),
+  end: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/),
 });
 export type Period = z.infer<typeof PeriodSchema>;
 
@@ -104,8 +104,8 @@ export const GA4FetchResponseSchema = z.object({
     fetched_at: z.string().datetime({ offset: true }),
     client_id: z.string(),
     period: z.object({
-      start: z.string().datetime({ offset: true }),
-      end: z.string().datetime({ offset: true }),
+      start: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/),
+      end: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/),
     }),
   }),
 });
@@ -116,8 +116,8 @@ export type GA4FetchResponse = z.infer<typeof GA4FetchResponseSchema>;
 export const GA4FetchRequestSchema = z.object({
   period: z
     .object({
-      start: z.string().datetime({ offset: true }),
-      end: z.string().datetime({ offset: true }),
+      start: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/),
+      end: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/),
     })
     .refine((p) => new Date(p.end).getTime() >= new Date(p.start).getTime(), {
       message: 'period.end must be >= period.start',
