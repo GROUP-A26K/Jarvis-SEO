@@ -22,8 +22,10 @@ const { logger } = require('./logger');
 const { readJSONSafe, writeJSONAtomic, ensureDir } = require('./fs-utils');
 const { acquireLock, withLockedJSON } = require('./locks');
 
-// TODO S2.1 : replace by lookup table sites→client_id ou process.env.JARVIS_SEO_CLIENT_ID
-const A26K_CLIENT_ID = '17c6c2c9-7e81-4291-aaf7-eecdc5e9ebe8';
+// S2.1 — env var first (cohérence Edge Function ga4-fetch handler.ts ligne 171),
+// hardcoded fallback pour dev/sandbox sans env var configurée.
+// Phase 5+ multi-tenant : remplacer par lookup table sites→client_id ou GCP project per client.
+const A26K_CLIENT_ID = process.env.A26K_CLIENT_ID || '17c6c2c9-7e81-4291-aaf7-eecdc5e9ebe8';
 
 let _supabaseClient = null;
 
