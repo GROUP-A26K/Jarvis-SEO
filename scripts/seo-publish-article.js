@@ -35,13 +35,13 @@ const {
   tavilySearch,
   trackUnits,
   printUnitsSummary,
+  trackArticle,
   callClaudeWithRetry,
   extractClaudeText,
   verifyUrl,
   httpRequest,
   readJSONSafe,
   writeJSONAtomic,
-  withLockedJSON,
   TIMEOUTS,
   VALID_PERSONAS,
   sanitizeErrorMessage,
@@ -241,53 +241,14 @@ function initDB() {
   }
 }
 
-function trackArticle(db, data) {
-  const n = {
-    id: data.id,
-    site: data.site,
-    keyword: data.keyword,
-    keyword_en: data.keywordEN || null,
-    persona: data.persona,
-    slug: data.slug,
-    geo_score: data.geoScore,
-    geo_status: data.geoStatus,
-    geo_visibility: data.geoVisibility || null,
-    published_at: data.publishedAt,
-    j30_date: data.j30,
-    j60_date: data.j60,
-    j90_date: data.j90,
-  };
-  if (!db) {
-    ensureDir(path.dirname(JSON_TRACKING_PATH));
-    withLockedJSON(JSON_TRACKING_PATH, [], (arts) => {
-      arts.push(n);
-    });
-    return;
-  }
-  db.prepare(
-    'INSERT OR REPLACE INTO articles (id,site,keyword,keyword_en,persona,slug,geo_score,geo_status,geo_visibility,published_at,j30_date,j60_date,j90_date) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
-  ).run(
-    n.id,
-    n.site,
-    n.keyword,
-    n.keyword_en,
-    n.persona,
-    n.slug,
-    n.geo_score,
-    n.geo_status,
-    n.geo_visibility,
-    n.published_at,
-    n.j30_date,
-    n.j60_date,
-    n.j90_date,
-  );
-}
+// trackArticle now centralized in scripts/lib/tracking.js (Sprint M1 S1 refactor).
+// Imported via seo-shared.js. Append-only Supabase metrics_seo backend.
 
 // ─── Etape 1 : Brief ────────────────────────────────────────
 
 async function buildBrief(apiKey, keyword) {
   console.log('\n> Etape 1 : Brief');
-  let overview = {};
+  const overview = {};
   try {
     const r = await semrushGet(
       `https://api.semrush.com/?type=phrase_all&key=${apiKey}&phrase=${encodeURIComponent(keyword)}&database=ch&export_columns=Ph,Nq,Kd,Cp,Co`,
@@ -646,8 +607,9 @@ JSON:
     logger.warn(`JSON parse echoue, retry strict...`);
     const retryResp = await callClaude(
       apiKey,
-      systemPrompt +
-        "\n\nATTENTION: ta reponse precedente n'etait pas du JSON valide. Retourne UNIQUEMENT du JSON, sans texte ni markdown autour.",
+      `${
+        systemPrompt
+      }\n\nATTENTION: ta reponse precedente n'etait pas du JSON valide. Retourne UNIQUEMENT du JSON, sans texte ni markdown autour.`,
       userPrompt,
       8000,
     );
@@ -662,7 +624,7 @@ JSON:
   }
 
   // --- Validate ---
-  let validation = validateArticleJSON(article);
+  const validation = validateArticleJSON(article);
 
   if (validation.fixes.length > 0) {
     console.log(`  ~ Auto-fix: ${validation.fixes.join(', ')}`);
@@ -782,8 +744,8 @@ function computeGEOScore(article, label) {
   const fullText = [
     article.title || '',
     article.summary || '',
-    ...article.sections.map((s) => (s.heading || '') + ' ' + (s.content || '')),
-    ...(article.faq || []).map((f) => (f.question || '') + ' ' + (f.answer || '')),
+    ...article.sections.map((s) => `${s.heading || ''} ${s.content || ''}`),
+    ...(article.faq || []).map((f) => `${f.question || ''} ${f.answer || ''}`),
   ].join(' ');
   const scores = {};
 
@@ -909,7 +871,7 @@ async function checkTopicalCoverage(apiKey, article, brief) {
     const resp = await callClaude(
       apiKey,
       'Analyste SEO. Reponds JSON: { "score": 0-10, "covered": [], "missing": [], "suggestion": "" }',
-      `Brief: "${brief.keyword}", themes: ${themes}\nArticle:\n${article.sections.map((s) => s.heading + ': ' + s.content.slice(0, 200)).join('\n')}`,
+      `Brief: "${brief.keyword}", themes: ${themes}\nArticle:\n${article.sections.map((s) => `${s.heading}: ${s.content.slice(0, 200)}`).join('\n')}`,
       500,
     );
     const r = JSON.parse(
@@ -1672,7 +1634,7 @@ ${htmlSections}${faqHtml}
     console.log('\n> MODE DRAFT-ONLY : generation sans publication Sanity');
 
     // Generate exhibits in draft-only mode too
-    let draftExhibits = [];
+    const draftExhibits = [];
     try {
       const { generateExhibits } = require('./seo-exhibits');
       const siteConf = getSiteConfig(opts.site);
@@ -1906,7 +1868,7 @@ ${htmlSections}${faqHtml}
   }
   if (publishedDocId) {
     const now = new Date();
-    trackArticle(db, {
+    await trackArticle({
       id: publishedDocId,
       site: opts.site,
       keyword: opts.keyword,
