@@ -120,7 +120,7 @@ async function checkArticlePositions(semrushKey, articles, today) {
       }
       const position = cache[art.site][art.keyword.toLowerCase()] || null;
       if (position !== null) {
-        updateArticleField(art.id, field, position);
+        await updateArticleField(art.id, field, position);
         results.push({
           site: art.site,
           keyword: art.keyword,
@@ -264,7 +264,7 @@ async function recheckGEOVisibility(apiKey, trackedArticles) {
           .trim(),
       );
       const vis = r.visibility || 'unknown';
-      updateArticleField(art.id, 'geo_visibility', vis);
+      await updateArticleField(art.id, 'geo_visibility', vis);
       results.push({
         keyword: art.keyword,
         site: art.site,
@@ -606,7 +606,7 @@ async function main() {
   }
 
   // Article tracking
-  const trackedArticles = loadTrackedArticles();
+  const trackedArticles = await loadTrackedArticles();
   let articleTracking = [];
   if (trackedArticles.length > 0) {
     articleTracking = await checkArticlePositions(semrush.api_key, trackedArticles, new Date());

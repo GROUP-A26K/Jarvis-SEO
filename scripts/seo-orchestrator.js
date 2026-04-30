@@ -114,7 +114,7 @@ async function phasePlan() {
   if (!gap) throw new Error("Aucun gap analysis trouve. Lancer seo-gap-analysis.js d'abord.");
   console.log(`  + Gap analysis: ${gap.date} (${Object.keys(gap.sites).length} sites)`);
 
-  const tracked = loadTrackedArticles();
+  const tracked = await loadTrackedArticles();
   console.log(`  + ${tracked.length} articles trackes`);
 
   const units = loadUnitsState();
