@@ -50,14 +50,11 @@ export async function handleMonitor(req: Request): Promise<Response> {
   });
 
   if (error) {
-    captureWithScope(
-      new Error(`RPC get_recent_failed_cron_runs failed: ${error.message}`),
-      {
-        fingerprint: ['edge-function-error', 'audit-log-cron-monitor', 'rpc-failure'],
-        tags: { function: 'audit-log-cron-monitor', error_type: 'rpc' },
-        contexts: { rpc_error: { message: error.message, code: error.code } },
-      },
-    );
+    captureWithScope(new Error(`RPC get_recent_failed_cron_runs failed: ${error.message}`), {
+      fingerprint: ['edge-function-error', 'audit-log-cron-monitor', 'rpc-failure'],
+      tags: { function: 'audit-log-cron-monitor', error_type: 'rpc' },
+      contexts: { rpc_error: { message: error.message, code: error.code } },
+    });
     await flushSentry();
     return jsonResponse(500, {
       ok: false,
