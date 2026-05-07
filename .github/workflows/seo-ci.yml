@@ -51,3 +51,15 @@ jobs:
       - run: npm ci
       - name: Check for circular dependencies in scripts/
         run: npx --yes madge --circular scripts/
+
+  deno-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.x
+      - name: Run Deno tests for Edge Functions (glob pattern)
+        # --config mandatory: deno.json imports map (@std/assert, npm:zod, etc.) lives in supabase/functions/
+        # Cf brief PR 1 SEO Reality wins divergence #1 (deno test from repo root requires explicit --config flag).
+        run: deno test --allow-env --allow-net --allow-read --config=supabase/functions/deno.json supabase/functions/**/*.test.ts

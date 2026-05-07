@@ -7,8 +7,8 @@ import type { DailyOverall, DailyPerPage, GA4FetchResponse } from '../_shared/sc
 // Test fixture — explicit, NOT the real A26K UUID per spec §5.
 const TEST_CLIENT_ID = 'test-uuid-fixture-1234';
 const VALID_PERIOD = {
-  start: '2026-04-01T00:00:00Z',
-  end: '2026-04-30T23:59:59Z',
+  start: '2026-04-01',
+  end: '2026-04-30',
 };
 
 // 5 property IDs from sites/ga4-properties.json (used by mock partial scenarios).
@@ -120,6 +120,11 @@ async function withClientIdEnv<T>(value: string, fn: () => Promise<T>): Promise<
 
 // --- Required tests (spec §5) ---
 
+// TOTAL_SITES = 8 hardcoded post-commit 4697b94 (29/04 add 3 properties AG + CP + GL).
+// Source-of-truth : sites/ga4-properties.json (excl. _meta key) — keep in sync manually
+// when sites added/removed. Validated empirically PR 1 SEO Sprint M3 W1 Reality wins #4.
+// Throwing 2 (PROPERTY_RG + PROPERTY_IG) → succeed 6 dans scenario partial.
+
 Deno.test('status ok when all sites return data', async () => {
   await withClientIdEnv(TEST_CLIENT_ID, async () => {
     const req = makePostRequest({ period: VALID_PERIOD });
@@ -130,9 +135,9 @@ Deno.test('status ok when all sites return data', async () => {
     assertEquals(res.status, 200);
     const body = (await res.json()) as GA4FetchResponse;
     assertEquals(body.status, 'ok');
-    assertEquals(body.data.sites.length, 5);
+    assertEquals(body.data.sites.length, 8);
     assertEquals(body.errors.length, 0);
-    assertEquals(body.data.aggregates.sites_with_data, 5);
+    assertEquals(body.data.aggregates.sites_with_data, 8);
     assertEquals(body.data.aggregates.sites_with_errors, 0);
     assertEquals(body.meta.client_id, TEST_CLIENT_ID);
   });
@@ -148,14 +153,14 @@ Deno.test('status partial when some sites throw', async () => {
     assertEquals(res.status, 200);
     const body = (await res.json()) as GA4FetchResponse;
     assertEquals(body.status, 'partial');
-    assertEquals(body.data.sites.length, 5);
+    assertEquals(body.data.sites.length, 8);
     assertEquals(body.data.sites.filter((s) => s.overall === null).length, 2);
     assertEquals(body.errors.length, 2);
     for (const err of body.errors) {
       assertEquals(err.scope, 'unknown');
       assertExists(err.site_slug);
     }
-    assertEquals(body.data.aggregates.sites_with_data, 3);
+    assertEquals(body.data.aggregates.sites_with_data, 6);
     assertEquals(body.data.aggregates.sites_with_errors, 2);
   });
 });
@@ -170,9 +175,9 @@ Deno.test('status error when all sites throw', async () => {
     assertEquals(res.status, 500);
     const body = (await res.json()) as GA4FetchResponse;
     assertEquals(body.status, 'error');
-    assertEquals(body.data.sites.length, 5);
-    assertEquals(body.data.sites.filter((s) => s.overall === null).length, 5);
-    assertEquals(body.errors.length, 5);
+    assertEquals(body.data.sites.length, 8);
+    assertEquals(body.data.sites.filter((s) => s.overall === null).length, 8);
+    assertEquals(body.errors.length, 8);
   });
 });
 

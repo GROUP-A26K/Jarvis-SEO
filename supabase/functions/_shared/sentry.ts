@@ -17,7 +17,7 @@ export function initSentry(): void {
     environment: Deno.env.get('SB_ENV') ?? 'production',
     defaultIntegrations: false,
     tracesSampleRate: 0.0, // pas de tracing pour Edge Functions monitoring (cost optim)
-    release: Deno.env.get('SENTRY_RELEASE') ?? 'jarvis-calendar@unknown',
+    release: Deno.env.get('SENTRY_RELEASE') ?? 'jarvis-seo@unknown',
   });
 
   initialized = true;

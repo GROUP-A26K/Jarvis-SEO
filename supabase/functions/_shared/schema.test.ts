@@ -61,8 +61,8 @@ Deno.test('GA4FetchResponse round-trip parses valid full payload', () => {
       fetched_at: '2026-04-28T11:00:00+02:00',
       client_id: '17c6c2c9-aaaa-bbbb-cccc-000000000000',
       period: {
-        start: '2026-04-01T00:00:00Z',
-        end: '2026-04-30T23:59:59Z',
+        start: '2026-04-01',
+        end: '2026-04-30',
       },
     },
   };
@@ -157,7 +157,7 @@ Deno.test("slug rejects single char 'f' (min 2)", () => {
 
 Deno.test('period accepts end > start', () => {
   GA4FetchRequestSchema.parse({
-    period: { start: '2026-04-01T00:00:00Z', end: '2026-04-30T23:59:59Z' },
+    period: { start: '2026-04-01', end: '2026-04-30' },
   });
 });
 
@@ -165,7 +165,7 @@ Deno.test('period rejects start > end', () => {
   assertThrows(
     () =>
       GA4FetchRequestSchema.parse({
-        period: { start: '2026-04-30T23:59:59Z', end: '2026-04-01T00:00:00Z' },
+        period: { start: '2026-04-30', end: '2026-04-01' },
       }),
     z.ZodError,
   );

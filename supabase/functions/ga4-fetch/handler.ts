@@ -44,10 +44,10 @@ function nowIso(): string {
 }
 
 // Placeholder period for early-error responses where request.period is unknown.
-// Zero-duration (start=end=now) — schema requires ISO datetime with offset.
+// Zero-duration (start=end=today YYYY-MM-DD) — schema requires date-only per E6 swap mocks→real (commit 3ff3dff).
 function placeholderPeriod(): { start: string; end: string } {
-  const now = nowIso();
-  return { start: now, end: now };
+  const today = nowIso().slice(0, 10);
+  return { start: today, end: today };
 }
 
 function getErrorMessage(err: unknown): string {
